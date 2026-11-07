@@ -30,29 +30,33 @@ export interface ApiResponse {
   chatResponse?: ChatResponse;
 }
 
-// ============================================================================
-// BASE CONFIGURATION & STATE
-// ============================================================================
+import { storage } from '../utils/storage';
 
-const DEFAULT_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'https://w78gddz2-8000.inc1.devtunnels.ms';
+const getEnvBaseUrl = (): string => {
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_BASE_URL) {
+      return process.env.EXPO_PUBLIC_API_BASE_URL;
+    }
+  } catch (_) {}
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL as string;
+    }
+  } catch (_) {}
+  return 'https://w78gddz2-8000.inc1.devtunnels.ms';
+};
 
-let apiBaseUrl: string = typeof window !== 'undefined'
-  ? localStorage.getItem('myra_api_base_url') || DEFAULT_BASE_URL
-  : DEFAULT_BASE_URL;
+const DEFAULT_BASE_URL = getEnvBaseUrl();
 
-let authToken: string | null = typeof window !== 'undefined'
-  ? localStorage.getItem('myra_access_token')
-  : null;
-
-let currentUser: UserResp | null = typeof window !== 'undefined' && localStorage.getItem('myra_user')
-  ? JSON.parse(localStorage.getItem('myra_user')!)
+let apiBaseUrl: string = storage.getItem('myra_api_base_url') || DEFAULT_BASE_URL;
+let authToken: string | null = storage.getItem('myra_access_token');
+let currentUser: UserResp | null = storage.getItem('myra_user')
+  ? JSON.parse(storage.getItem('myra_user')!)
   : null;
 
 export function setApiBaseUrl(url: string) {
   apiBaseUrl = url.replace(/\/+$/, '');
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('myra_api_base_url', apiBaseUrl);
-  }
+  storage.setItem('myra_api_base_url', apiBaseUrl);
 }
 
 export function getApiBaseUrl(): string {
@@ -62,17 +66,15 @@ export function getApiBaseUrl(): string {
 export function setAuthToken(token: string | null, user: UserResp | null = null) {
   authToken = token;
   currentUser = user;
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem('myra_access_token', token);
-    } else {
-      localStorage.removeItem('myra_access_token');
-    }
-    if (user) {
-      localStorage.setItem('myra_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('myra_user');
-    }
+  if (token) {
+    storage.setItem('myra_access_token', token);
+  } else {
+    storage.removeItem('myra_access_token');
+  }
+  if (user) {
+    storage.setItem('myra_user', JSON.stringify(user));
+  } else {
+    storage.removeItem('myra_user');
   }
 }
 
