@@ -1,0 +1,6 @@
+{
+  "name": "Myra - Intelligent Audio OS",
+  "description": "High-fidelity music streaming application with portrait mobile and landscape automotive cockpit layouts, featuring Myra Voice AI Copilot, lossless audio playback, and adaptive dual-orientation interfaces.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

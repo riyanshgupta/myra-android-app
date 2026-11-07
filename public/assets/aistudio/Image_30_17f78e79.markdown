@@ -1,0 +1,220 @@
+---
+name: Nocturne Intelligent Audio
+colors:
+  surface: '#10131a'
+  surface-dim: '#10131a'
+  surface-bright: '#363941'
+  surface-container-lowest: '#0b0e15'
+  surface-container-low: '#191b23'
+  surface-container: '#1d1f27'
+  surface-container-high: '#272a32'
+  surface-container-highest: '#32353d'
+  on-surface: '#e1e2ec'
+  on-surface-variant: '#cbc3d7'
+  inverse-surface: '#e1e2ec'
+  inverse-on-surface: '#2d3038'
+  outline: '#958ea0'
+  outline-variant: '#494454'
+  surface-tint: '#d0bcff'
+  primary: '#d0bcff'
+  on-primary: '#3c0091'
+  primary-container: '#a078ff'
+  on-primary-container: '#340080'
+  inverse-primary: '#6d3bd7'
+  secondary: '#4cd7f6'
+  on-secondary: '#003640'
+  secondary-container: '#03b5d3'
+  on-secondary-container: '#00424e'
+  tertiary: '#ffb2b7'
+  on-tertiary: '#67001b'
+  tertiary-container: '#ff516a'
+  on-tertiary-container: '#5b0017'
+  error: '#ffb4ab'
+  on-error: '#690005'
+  error-container: '#93000a'
+  on-error-container: '#ffdad6'
+  primary-fixed: '#e9ddff'
+  primary-fixed-dim: '#d0bcff'
+  on-primary-fixed: '#23005c'
+  on-primary-fixed-variant: '#5516be'
+  secondary-fixed: '#acedff'
+  secondary-fixed-dim: '#4cd7f6'
+  on-secondary-fixed: '#001f26'
+  on-secondary-fixed-variant: '#004e5c'
+  tertiary-fixed: '#ffdadb'
+  tertiary-fixed-dim: '#ffb2b7'
+  on-tertiary-fixed: '#40000d'
+  on-tertiary-fixed-variant: '#92002a'
+  background: '#10131a'
+  on-background: '#e1e2ec'
+  surface-variant: '#32353d'
+typography:
+  display-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 40px
+    fontWeight: '800'
+    lineHeight: 48px
+  display-lg-mobile:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 32px
+    fontWeight: '800'
+    lineHeight: 40px
+  headline-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 28px
+    fontWeight: '700'
+    lineHeight: 36px
+  headline-md:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 22px
+    fontWeight: '600'
+    lineHeight: 28px
+  headline-sm:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 18px
+    fontWeight: '600'
+    lineHeight: 24px
+  body-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 16px
+    fontWeight: '400'
+    lineHeight: 24px
+  body-md:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  body-sm:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 12px
+    fontWeight: '400'
+    lineHeight: 16px
+  label-lg:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: '600'
+    lineHeight: 20px
+  label-md:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: '500'
+    lineHeight: 16px
+  label-sm:
+    fontFamily: Inter
+    fontSize: 10px
+    fontWeight: '600'
+    lineHeight: 14px
+rounded:
+  sm: 0.25rem
+  DEFAULT: 0.5rem
+  md: 0.75rem
+  lg: 1rem
+  xl: 1.5rem
+  full: 9999px
+spacing:
+  gutter: 1rem
+  gutter-car: 1.5rem
+  margin: 1rem
+  margin-car: 2rem
+  space-xs: 0.25rem
+  space-sm: 0.5rem
+  space-md: 1rem
+  space-lg: 1.5rem
+  space-xl: 2rem
+---
+
+## Brand & Style
+The design system bridges personal acoustic immersion with high-visibility automotive utility. Designed for seamless operation across both Android handheld devices and Android 10 automotive head units, the interface prioritizes glanceability, high contrast, and tactile confidence while preserving a sleek, atmospheric, late-night aesthetic.
+
+The visual style is **Tactile Glass & Luminescent Dark**:
+- **Atmospheric Depth:** Deep spatial tones eliminate cockpit glare and display burnout during nighttime drives while offering an intimate listening lounge experience on mobile.
+- **Instrument Precision:** Crisp, technical vector lines and luminescent accents simulate high-end automotive instrument clusters mixed with modern software synthesis tools.
+- **Restrained Glassmorphism:** Performance-conscious translucent fills with micro-borders replace compute-heavy live backdrop blurs, ensuring sustained 60fps rendering even on low-tier automotive SoCs running Android 10.
+
+## Colors
+The palette leverages high-contrast luminescence over a multi-tiered midnight canvas.
+
+### Palette Architecture
+- **Base Canvas (`#0A0D14`):** True deep-space charcoal base preventing OLED bleed and distraction during driving.
+- **Surface Elevation 1 (`#0F1420`):** Secondary canvas, side rails, bottom navigation containers.
+- **Surface Elevation 2 (`#161C2A`):** Standard interactive cards, mini-player vessel, list groupings.
+- **Surface Elevation 3 (`#1E2638`):** Elevated overlays, floating controls, dialogs, active pills.
+- **Electric Violet (`#8B5CF6` / `#7C3AED`):** Primary brand driver, AI active states, primary interactive triggers.
+- **Radiant Indigo (`#6366F1`):** Ambient accent, playback progress track, gradient terminations.
+- **Luminous Cyan (`#06B6D4`):** Secondary voice feedback, streaming quality badges, active EQ indicators.
+- **Soft Rose (`#F43F5E`):** Expressive actions, favorites, hearts, dynamic passion metrics.
+
+### Contrast & Boundaries
+- Surface borders utilize `rgba(255, 255, 255, 0.08)` on default containers, escalating to `rgba(139, 92, 246, 0.40)` on active or voice-responsive elements.
+- Text hierarchy conforms to strict automotive readability standards: Primary (`#FFFFFF`), Secondary (`#94A3B8`), and Micro/Metadata (`#64748B`).
+
+## Typography
+The typography strategy prioritizes optical clarity under sub-optimal viewing angles, such as an arm's-length automotive dashboard in daylight or a handheld screen under direct sun.
+
+- **Primary Typeface (`Plus Jakarta Sans`):** Selected for its wide aperture, geometric clarity, and humanist touches, avoiding visual congestion in dense playlists.
+- **Data & Micro UI (`Inter`):** Applied to labels, technical tags (FLAC, 96kHz, Dolby Atmos), timestamps, and HUD readouts for maximum optical density and crisp pixel fitting.
+- **Driving Legibility Rules:** Any typography displayed on head unit screens during active transit must not fall below `14px` (`body-md`).
+
+## Layout & Spacing
+The layout implements an adaptive dual-canvas architecture engineered for two distinct ergonomic contexts: Vertical Handheld and Horizontal In-Car Cockpit.
+
+### Spatial Ergonomics
+- **Handheld Canvas (360dp - 430dp):** Fluid single-column layout. 16px lateral margin, 16px gutters. Single-handed thumb zones govern the lower 40% of the display.
+- **Automotive Canvas (800dp - 1280dp wide landscape, 7-10 inch head units):** 2-column or 3-column split interface. 32px safety margins avoiding bezel intrusion. Minimum touch target boundaries expand to `56dp x 56dp` (up from `48dp x 48dp` on handheld).
+
+### Safe-Zone Guardrails
+- **Floating Bar Offsets:** All content lists must include a dynamic scroll padding equivalent to `mini_player_height (64px) + bottom_nav_height (64px) + 32px` to prevent occlusion.
+- **Hardware Bezel Compliance:** Car dashboards commonly feature raised bezels; outer bounds enforce `margin-car: 2rem` to prevent clipped taps.
+
+## Elevation & Depth
+Depth is constructed structurally without relying on runtime-intensive raster blurs, ensuring fluid framerates on low-memory vehicle systems.
+
+### Tonal Stratification
+1. **Level 0 (Floor):** Pure `#0A0D14`. Background canvas.
+2. **Level 1 (Dock & Side Panel):** `#0F1420` with a 1px top or right border of `rgba(255, 255, 255, 0.04)`.
+3. **Level 2 (Cards & Modules):** Translucent composite `#161C2A` (92% opacity) wrapped in a crisp 1px stroke of `rgba(255, 255, 255, 0.08)`.
+4. **Level 3 (Interactive Floats & Mini-Player):** `#1E2638` (96% opacity) with a dual boundary: 1px `rgba(255, 255, 255, 0.12)` exterior, and a directional top rim light of `rgba(255, 255, 255, 0.20)`.
+
+### Chromatic Glows
+Interactive audio and voice states utilize localized emissive shadows:
+- **Audio Active Glow:** `0px 8px 24px -4px rgba(139, 92, 246, 0.35)`.
+- **AI Listening Pulse:** Radial ambient wash `0px 0px 40px 8px rgba(6, 182, 212, 0.25)`.
+- **Liked Affirmation:** `0px 4px 16px 0px rgba(244, 63, 94, 0.30)`.
+
+## Shapes
+A balanced geometric corner profile (`16px / 1rem` standard base) offers modern sophistication while cleanly framing dense media covers.
+
+- **Album Artwork & Media Cards:** Set strictly to `16px` (`rounded-lg`) corner curvature to maintain visual consistency across aspect ratios.
+- **HUD & Command Pills:** Pill-shaped (`9999px`) styling for tags, state badges, voice command chips, and quick action filters.
+- **Mini-Player Container:** `16px` curvature when floating on handheld screens, shifting to `0px` bottom radius when docked flush against car unit display bottoms.
+- **Touch-Target Outlines:** Inner controls (play/pause, skip) live inside fully circular (`9999px`) protective tap bounding boxes.
+
+## Components
+
+### Sleek Glassmorphic Cards
+- **Construction:** Background `#161C2A` with 90% opacity, bordered by `1px solid rgba(255, 255, 255, 0.08)`.
+- **States:** Hover/Touch focused scales smoothly to 1.02 with border shifting to `rgba(139, 92, 246, 0.5)`.
+- **Album Grid:** High-fidelity cover art fills with top inner-vignette to ensure readability of floating text tags.
+
+### Mini-Player Bar
+- **Dimensions:** 64px fixed height. Floats 12px above the bottom navigation rail or sits flush in landscape auto mode.
+- **Styling:** `#1E2638` with 94% opacity, bounded by `1px solid rgba(255, 255, 255, 0.12)`.
+- **Elements:** 44px album art miniature (8px radius), Marquee Track Title, Artist, Voice Assistant invocation icon, and large touch-area Play/Pause toggle (48dp x 48dp minimum). Integrated progress bar exists as a 2px track along the very top edge (`#8B5CF6`).
+
+### Bottom Navigation Bar
+- **Styling:** Dark midnight surface (`#0F1420`) with 64px structural height.
+- **Active State:** Glowing pill highlight featuring an Electric Violet tinted base (`rgba(139, 92, 246, 0.15)`) with an accented active indicator and high-contrast white icon.
+
+### AI Assistant HUD
+- **Listening Orb:** Radial gradient core shifting from `#8B5CF6` to `#06B6D4` with a breathing scale animation between 0.95 and 1.05.
+- **Waveform Interface:** 5-bar to 16-bar vertical parametric equalizers rendered in `#06B6D4` with smooth amplitude decay.
+- **HUD State Pills:** Pill containers displaying contextual text (e.g., "Finding upbeat driving jazz...", "Playing daily commute radar") with an illuminated outer boundary and micro-indicator beacon.
+
+### Quick Action Pills & Chips
+- **Resting:** `#161C2A` surface, `1px solid rgba(255, 255, 255, 0.08)` border, 32px height, 14px horizontal padding.
+- **Selected:** Gradient wash from `#7C3AED` to `#6366F1`, zero border, `display-color: #FFFFFF`, accompanied by an active glow.
+
+### Lists & Track Rows
+- **Metrics:** 64px row height on mobile, 72px on car units for driver glanceability.
+- **Content:** Track index/EQ visualizer, 48px square art asset, Title in `#FFFFFF`, Subtitle in `#94A3B8`, right-aligned duration in `#64748B`, and overflow button with a 48px tap envelope.
+- **Divider:** Recessed divider inset by 72px using `rgba(255, 255, 255, 0.04)`.
