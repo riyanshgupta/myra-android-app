@@ -21,12 +21,14 @@ class WakeWordListenerService {
   private micStream: MediaStream | null = null;
 
   constructor() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       const handleUserGesture = () => {
         this.requestMicPermission();
       };
-      window.addEventListener('click', handleUserGesture, { once: true });
-      window.addEventListener('keydown', handleUserGesture, { once: true });
+      try {
+        window.addEventListener('click', handleUserGesture, { once: true });
+        window.addEventListener('keydown', handleUserGesture, { once: true });
+      } catch (_) {}
     }
   }
 

@@ -284,9 +284,7 @@ export async function loginApi(username: string, pin: string): Promise<AuthResp>
 export async function getMeApi(): Promise<UserResp> {
   const res = await request<UserResp>('/users/me', { method: 'GET' });
   currentUser = res;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('myra_user', JSON.stringify(res));
-  }
+  storage.setItem('myra_user', JSON.stringify(res));
   return res;
 }
 

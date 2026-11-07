@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { PlayerProvider, usePlayer } from './src/context/PlayerContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
@@ -30,7 +30,7 @@ const AppContent = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#10131a" />
       <View style={styles.mainContainer}>
         {renderScreen()}
@@ -86,7 +86,11 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#10131a' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#10131a',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
+  },
   mainContainer: { flex: 1, backgroundColor: '#10131a' },
   miniPlayer: {
     flexDirection: 'row',

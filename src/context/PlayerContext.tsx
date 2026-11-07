@@ -226,6 +226,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Orientation listener
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
     const handleResize = () => {
       setWindowIsLandscape(window.innerWidth > window.innerHeight && window.innerWidth >= 768);
     };
