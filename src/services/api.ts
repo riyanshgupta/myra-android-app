@@ -18,6 +18,7 @@ import {
   ChatSession,
   VoiceApiPayload,
 } from '../types/music';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type { UserResp };
 
@@ -34,25 +35,46 @@ export interface ApiResponse {
 // BASE CONFIGURATION & STATE
 // ============================================================================
 
-const DEFAULT_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'https://w78gddz2-8000.inc1.devtunnels.ms';
+const DEFAULT_BASE_URL =
+  (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_API_BASE_URL) ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+  'https://w78gddz2-8000.inc1.devtunnels.ms';
 
-let apiBaseUrl: string = typeof window !== 'undefined'
-  ? localStorage.getItem('myra_api_base_url') || DEFAULT_BASE_URL
-  : DEFAULT_BASE_URL;
+const API_BASE_URL_KEY = 'myra_api_base_url';
+const ACCESS_TOKEN_KEY = 'myra_access_token';
+const USER_KEY = 'user';
 
-let authToken: string | null = typeof window !== 'undefined'
-  ? localStorage.getItem('myra_access_token')
-  : null;
+let apiBaseUrl = DEFAULT_BASE_URL;
+let authToken: string | null = null;
+let currentUser: UserResp | null = null;
 
-let currentUser: UserResp | null = typeof window !== 'undefined' && localStorage.getItem('myra_user')
-  ? JSON.parse(localStorage.getItem('myra_user')!)
-  : null;
+const storageReady = AsyncStorage.multiGet([
+  API_BASE_URL_KEY,
+  ACCESS_TOKEN_KEY,
+  USER_KEY,
+]).then(([baseUrl, token, user]) => {
+  apiBaseUrl = baseUrl[1] || DEFAULT_BASE_URL;
+  authToken = token[1];
+  if (user[1]) {
+    try {
+      currentUser = JSON.parse(user[1]) as UserResp;
+    } catch (error) {
+      console.warn('[Myra API] Stored user data is invalid:', error);
+    }
+  }
+}).catch((error) => {
+  console.warn('[Myra API] Failed to restore stored session:', error);
+});
+
+export async function hydrateApiStorage(): Promise<void> {
+  await storageReady;
+}
 
 export function setApiBaseUrl(url: string) {
   apiBaseUrl = url.replace(/\/+$/, '');
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('myra_api_base_url', apiBaseUrl);
-  }
+  AsyncStorage.setItem(API_BASE_URL_KEY, apiBaseUrl).catch((error) => {
+    console.warn('[Myra API] Failed to save API base URL:', error);
+  });
 }
 
 export function getApiBaseUrl(): string {
@@ -62,18 +84,16 @@ export function getApiBaseUrl(): string {
 export function setAuthToken(token: string | null, user: UserResp | null = null) {
   authToken = token;
   currentUser = user;
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem('myra_access_token', token);
-    } else {
-      localStorage.removeItem('myra_access_token');
-    }
-    if (user) {
-      localStorage.setItem('myra_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('myra_user');
-    }
-  }
+  Promise.all([
+    token
+      ? AsyncStorage.setItem(ACCESS_TOKEN_KEY, token)
+      : AsyncStorage.removeItem(ACCESS_TOKEN_KEY),
+    user
+      ? AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+      : AsyncStorage.removeItem(USER_KEY),
+  ]).catch((error) => {
+    console.warn('[Myra API] Failed to save session:', error);
+  });
 }
 
 export function getAuthToken(): string | null {
@@ -180,6 +200,7 @@ async function request<T>(
   options: RequestInit = {},
   timeoutMs = 20000
 ): Promise<T> {
+  await storageReady;
   const url = `${apiBaseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   const headers: Record<string, string> = {
     'X-Tunnel-Skip-AntiPhishing-Page': 'true',
@@ -193,7 +214,7 @@ async function request<T>(
   }
 
   if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
+    headers['Authorization'] = `Bearer ${authToken}`
   }
 
   const controller = new AbortController();
@@ -282,9 +303,9 @@ export async function loginApi(username: string, pin: string): Promise<AuthResp>
 export async function getMeApi(): Promise<UserResp> {
   const res = await request<UserResp>('/users/me', { method: 'GET' });
   currentUser = res;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('myra_user', JSON.stringify(res));
-  }
+  AsyncStorage.setItem(USER_KEY, JSON.stringify(res)).catch((error) => {
+    console.warn('[Myra API] Failed to save current user:', error);
+  });
   return res;
 }
 

@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "newArchEnabled": false,
+    "plugins": [
+      "@react-native-voice/voice"
+    ],
+    "android": {
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.reactexample"
+    }
+  }
+}
