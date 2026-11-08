@@ -1,14 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Audio } from 'expo-av';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Track, Playlist, UserResp } from '../types/music';
 import {
   initApiStorage,
   getTrendingApi,
-  getFavoritesApi,
   getTrackStreamApi,
-  getAuthToken,
   getCurrentUser,
-  setAuthToken,
 } from '../services/api';
 
 interface PlayerContextType {
@@ -44,7 +41,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isLoadingTrending, setIsLoadingTrending] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserResp | null>(getCurrentUser());
-  const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
+
+  const playerRef = useRef<any>(null);
+  const subscriptionRef = useRef<any>(null);
 
   // Configure Audio Mode on startup
   useEffect(() => {
@@ -52,12 +51,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       await initApiStorage();
       setCurrentUser(getCurrentUser());
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
         });
       } catch (_) {}
 
@@ -75,6 +71,19 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsLoadingTrending(false);
     }
     configureAudio();
+
+    return () => {
+      if (subscriptionRef.current) {
+        try {
+          subscriptionRef.current.remove();
+        } catch (_) {}
+      }
+      if (playerRef.current) {
+        try {
+          playerRef.current.remove();
+        } catch (_) {}
+      }
+    };
   }, []);
 
   const playTrack = async (track: Track) => {
@@ -82,12 +91,19 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setDuration(track.duration || 180);
     setCurrentTime(0);
 
-    // Unload existing sound
-    if (soundInstance) {
+    // Clean up previous player
+    if (subscriptionRef.current) {
       try {
-        await soundInstance.unloadAsync();
+        subscriptionRef.current.remove();
       } catch (_) {}
-      setSoundInstance(null);
+      subscriptionRef.current = null;
+    }
+    if (playerRef.current) {
+      try {
+        playerRef.current.pause();
+        playerRef.current.remove();
+      } catch (_) {}
+      playerRef.current = null;
     }
 
     let playbackUrl: string | null = null;
@@ -102,29 +118,34 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     try {
-      // EXPO-AV AUDIO SOUND WITH JIOSAAVN REFERER HEADER
-      const { sound } = await Audio.Sound.createAsync(
-        {
-          uri: playbackUrl,
-          headers: {
-            Referer: 'https://www.jiosaavn.com/',
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36',
-          },
+      // EXPO-AUDIO PLAYER WITH JIOSAAVN REFERER HEADER
+      const player = createAudioPlayer({
+        uri: playbackUrl,
+        headers: {
+          Referer: 'https://www.jiosaavn.com/',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36',
         },
-        { shouldPlay: true }
-      );
-
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded) {
-          setIsPlaying(status.isPlaying);
-          setCurrentTime(Math.floor((status.positionMillis || 0) / 1000));
-          if (status.didJustFinish) {
-            nextTrack();
-          }
-        }
       });
 
-      setSoundInstance(sound);
+      playerRef.current = player;
+
+      if (player.addListener) {
+        subscriptionRef.current = player.addListener('playbackStatusUpdate', (status: any) => {
+          if (status) {
+            if (typeof status.isPlaying === 'boolean') {
+              setIsPlaying(status.isPlaying);
+            }
+            if (typeof status.currentTime === 'number') {
+              setCurrentTime(Math.floor(status.currentTime));
+            }
+            if (status.didJustFinish) {
+              nextTrack();
+            }
+          }
+        });
+      }
+
+      await player.play();
       setIsPlaying(true);
     } catch (err) {
       console.warn('Expo Audio Playback Error:', err);
@@ -133,22 +154,26 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const togglePlay = async () => {
-    if (!soundInstance) {
-      if (currentTrack) playTrack(currentTrack);
+    if (!playerRef.current) {
+      if (currentTrack) await playTrack(currentTrack);
       return;
     }
-    if (isPlaying) {
-      await soundInstance.pauseAsync();
-      setIsPlaying(false);
-    } else {
-      await soundInstance.playAsync();
-      setIsPlaying(true);
-    }
+    try {
+      if (isPlaying) {
+        await playerRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        await playerRef.current.play();
+        setIsPlaying(true);
+      }
+    } catch (_) {}
   };
 
   const pauseTrack = async () => {
-    if (soundInstance) {
-      await soundInstance.pauseAsync();
+    if (playerRef.current) {
+      try {
+        await playerRef.current.pause();
+      } catch (_) {}
       setIsPlaying(false);
     }
   };
@@ -168,9 +193,11 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const seekTo = async (seconds: number) => {
-    if (soundInstance) {
-      await soundInstance.setPositionAsync(seconds * 1000);
-      setCurrentTime(seconds);
+    if (playerRef.current) {
+      try {
+        await playerRef.current.seekTo(seconds);
+        setCurrentTime(seconds);
+      } catch (_) {}
     }
   };
 

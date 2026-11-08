@@ -16,14 +16,6 @@
         "MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.myra.music.ai"
-    },
-    "plugins": [
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Allow Myra AI to record audio for voice commands."
-        }
-      ]
-    ]
+    }
   }
 }
