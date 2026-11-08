@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
-import { Track } from '../types/music';
 
 const MOOD_CATEGORIES = [
   { id: 'all', name: 'All', icon: 'auto-awesome' },
@@ -34,7 +33,6 @@ export const HomeScreen: React.FC = () => {
     isPlaying,
     requestMicPermission,
     executeVoiceCommand,
-    isMicGranted,
   } = usePlayer();
 
   const curatedTracks = trendingTracks.slice(0, 5);
@@ -47,7 +45,7 @@ export const HomeScreen: React.FC = () => {
 
   const displayedTracks = getFilteredTracks();
 
-  const handleSpeakPress = async () => {
+  const handleAskMyraPress = async () => {
     await requestMicPermission();
     setActiveScreen('myra-ai');
   };
@@ -62,7 +60,7 @@ export const HomeScreen: React.FC = () => {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* 1. Greeting Header */}
+      {/* 1. Greeting Section (Matching Web line 37-57) */}
       <View style={styles.greetingRow}>
         <View style={styles.greetingTitleCol}>
           <View style={styles.greetingSubRow}>
@@ -73,9 +71,20 @@ export const HomeScreen: React.FC = () => {
           </View>
           <Text style={styles.greetingSub}>Myra Intelligent Audio Copilot</Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.profileChip}
+          onPress={() => setActiveScreen('myra-ai')}
+          activeOpacity={0.7}
+        >
+          <Icon name="account-circle" size={16} color="#4cd7f6" />
+          <Text style={styles.profileChipText}>
+            {currentUser ? currentUser.username : 'Sign In'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* 2. Mood Filters Carousel */}
+      {/* 2. Mood Filters Carousel (Matching Web line 59-78) */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -93,7 +102,7 @@ export const HomeScreen: React.FC = () => {
               <Icon
                 name={m.icon}
                 size={14}
-                color={isActive ? '#0b0e17' : '#cbc3d7'}
+                color={isActive ? '#ffffff' : '#cbc3d7'}
               />
               <Text style={[styles.moodText, isActive && styles.moodTextActive]}>
                 {m.name}
@@ -103,7 +112,7 @@ export const HomeScreen: React.FC = () => {
         })}
       </ScrollView>
 
-      {/* 3. "Hey Myra" Voice Assistant Banner */}
+      {/* 3. "Hey Myra" Voice Assistant Banner with "Ask Myra" Button (Matching Web line 85-153) */}
       <View style={styles.aiBanner}>
         {/* Subtle Ambient glow circles */}
         <View style={styles.ambientGlowRight} />
@@ -112,7 +121,8 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.aiBannerTop}>
           <View style={styles.aiBannerTitleRow}>
             <View style={styles.aiIconBadge}>
-              <Icon name="graphic-eq" size={18} color="#4cd7f6" />
+              <Icon name="graphic-eq" size={18} color="#d0bcff" />
+              <View style={styles.aiIconDot} />
             </View>
             <View>
               <View style={styles.aiTagRow}>
@@ -121,25 +131,22 @@ export const HomeScreen: React.FC = () => {
                   <Text style={styles.heyBadgeText}>"Hey Myra"</Text>
                 </View>
               </View>
-              <Text style={styles.aiSub}>
-                {isMicGranted
-                  ? 'Say "Hey Myra" or tap Speak to command'
-                  : 'Tap Speak to grant microphone & listen'}
-              </Text>
+              <Text style={styles.aiSub}>Say "Hey Myra" or tap to speak</Text>
             </View>
           </View>
 
+          {/* EXACT "Ask Myra" Button */}
           <TouchableOpacity
             style={styles.askMyraBtn}
-            onPress={handleSpeakPress}
+            onPress={handleAskMyraPress}
             activeOpacity={0.8}
           >
-            <Icon name="mic" size={16} color="#0b0e17" />
-            <Text style={styles.askMyraBtnText}>Speak</Text>
+            <Icon name="mic" size={16} color="#ffffff" />
+            <Text style={styles.askMyraBtnText}>Ask Myra</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Real Equalizer Visualizer Strip */}
+        {/* Live Voice Equalizer Visualizer Strip */}
         <View style={styles.visualizerStrip}>
           <View style={styles.barsContainer}>
             <View style={[styles.visBar, { height: 8, backgroundColor: '#4cd7f6' }]} />
@@ -173,7 +180,7 @@ export const HomeScreen: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* 4. Curated by Myra AI Section */}
+      {/* 4. Curated by Myra AI Section (Matching Web line 155-220) */}
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>Curated by Myra AI</Text>
@@ -274,10 +281,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   greetingTitleCol: {
     gap: 4,
+    flex: 1,
   },
   greetingSubRow: {
     flexDirection: 'row',
@@ -293,6 +304,22 @@ const styles = StyleSheet.create({
   greetingSub: {
     fontSize: 12,
     color: '#cbc3d7',
+  },
+  profileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1d1f27',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.3)',
+  },
+  profileChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4cd7f6',
   },
   moodsCarousel: {
     flexDirection: 'row',
@@ -311,8 +338,13 @@ const styles = StyleSheet.create({
     borderColor: '#272a32',
   },
   moodChipActive: {
-    backgroundColor: '#4cd7f6',
-    borderColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
+    borderColor: '#a078ff',
+    shadowColor: '#a078ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
   },
   moodText: {
     fontSize: 12,
@@ -320,7 +352,7 @@ const styles = StyleSheet.create({
     color: '#cbc3d7',
   },
   moodTextActive: {
-    color: '#0b0e17',
+    color: '#ffffff',
     fontWeight: '800',
   },
   aiBanner: {
@@ -370,8 +402,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.4)',
+    position: 'relative',
+  },
+  aiIconDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4cd7f6',
   },
   aiTagRow: {
     flexDirection: 'row',
@@ -384,15 +424,17 @@ const styles = StyleSheet.create({
     color: '#e1e2ec',
   },
   heyBadge: {
-    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    backgroundColor: 'rgba(160, 120, 255, 0.2)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.3)',
   },
   heyBadgeText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   aiSub: {
     fontSize: 11,
@@ -402,16 +444,21 @@ const styles = StyleSheet.create({
   askMyraBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#4cd7f6',
+    gap: 5,
+    backgroundColor: '#a078ff',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 16,
+    shadowColor: '#a078ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
   },
   askMyraBtnText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#0b0e17',
+    color: '#ffffff',
   },
   visualizerStrip: {
     flexDirection: 'row',

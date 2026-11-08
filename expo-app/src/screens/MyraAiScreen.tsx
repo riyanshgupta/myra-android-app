@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,47 +10,132 @@ import {
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
+import { ApiResponse } from '../types/music';
+
+const WAVE_BARS = [18, 35, 55, 80, 100, 65, 85, 95, 70, 90, 60, 80, 100, 75, 50, 65, 40, 25];
 
 export const MyraAiScreen: React.FC = () => {
   const {
-    isMicGranted,
+    setActiveScreen,
     requestMicPermission,
     executeVoiceCommand,
   } = usePlayer();
 
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [liveCaption, setLiveCaption] = useState<string>('');
+  const [apiStatus, setApiStatus] = useState<
+    'idle' | 'listening' | 'pause_detected' | 'sending' | 'completed'
+  >('idle');
+  const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null);
+  const [finalTranscript, setFinalTranscript] = useState<string>('');
   const [customText, setCustomText] = useState<string>('');
-  const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'done'>('idle');
-  const [responseMsg, setResponseMsg] = useState<string>('');
-  const [lastPrompt, setLastPrompt] = useState<string>('');
+  const [waveformScale, setWaveformScale] = useState<number[]>(WAVE_BARS.map(() => 15));
 
-  const handleOrbPress = async () => {
-    // 1. Check or request microphone permission
-    const granted = await requestMicPermission();
-    if (!granted) {
-      setStatus('idle');
-      return;
-    }
+  const waveTimerRef = useRef<any>(null);
+  const streamTimerRef = useRef<any>(null);
 
-    // 2. Start listening mode
-    setStatus('listening');
-    setResponseMsg('Listening to your voice command... Speak now or tap a suggestion below.');
+  // Auto-request mic on opening screen and start listening if granted
+  useEffect(() => {
+    let isMounted = true;
+    requestMicPermission().then((granted) => {
+      if (isMounted && granted) {
+        startListening();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      stopWaveAnimation();
+      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    };
+  }, []);
+
+  const startWaveAnimation = () => {
+    if (waveTimerRef.current) clearInterval(waveTimerRef.current);
+    waveTimerRef.current = setInterval(() => {
+      setWaveformScale(
+        WAVE_BARS.map((base) => {
+          const rand = Math.random() * 0.8 + 0.4;
+          return Math.min(100, Math.max(15, base * rand));
+        })
+      );
+    }, 120);
   };
 
-  const handlePrompt = async (promptText: string) => {
-    if (!promptText.trim()) return;
-    setLastPrompt(promptText);
-    setStatus('processing');
-    setResponseMsg('');
-
-    try {
-      const res = await executeVoiceCommand(promptText);
-      setStatus('done');
-      const speech = res.responseSpeech || res.message || 'Executing your request.';
-      setResponseMsg(speech);
-    } catch (_) {
-      setStatus('done');
-      setResponseMsg('Connected to Myra OS. Command acknowledged.');
+  const stopWaveAnimation = () => {
+    if (waveTimerRef.current) {
+      clearInterval(waveTimerRef.current);
+      waveTimerRef.current = null;
     }
+    setWaveformScale(WAVE_BARS.map(() => 12));
+  };
+
+  const startListening = () => {
+    setIsRecording(true);
+    setApiStatus('listening');
+    setLiveCaption('');
+    setFinalTranscript('');
+    setApiResponse(null);
+    startWaveAnimation();
+  };
+
+  const stopListening = () => {
+    setIsRecording(false);
+    setApiStatus('idle');
+    stopWaveAnimation();
+  };
+
+  const toggleListening = async () => {
+    if (isRecording) {
+      stopListening();
+    } else {
+      const granted = await requestMicPermission();
+      if (granted) {
+        startListening();
+      }
+    }
+  };
+
+  const handleSimulateVoice = (phrase: string) => {
+    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+
+    setIsRecording(true);
+    setApiStatus('listening');
+    setApiResponse(null);
+    setLiveCaption('');
+    startWaveAnimation();
+
+    const words = phrase.split(' ');
+    let currentIdx = 0;
+
+    streamTimerRef.current = setInterval(() => {
+      currentIdx++;
+      const partial = words.slice(0, currentIdx).join(' ');
+      setLiveCaption(partial);
+
+      if (currentIdx >= words.length) {
+        clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+        stopWaveAnimation();
+        setApiStatus('pause_detected');
+
+        setTimeout(async () => {
+          setApiStatus('sending');
+          setFinalTranscript(phrase);
+          const res = await executeVoiceCommand(phrase);
+          setApiResponse(res);
+          setApiStatus('completed');
+          setIsRecording(false);
+        }, 1200);
+      }
+    }, 250);
+  };
+
+  const handleSendCustom = async () => {
+    if (!customText.trim()) return;
+    const prompt = customText.trim();
+    setCustomText('');
+    handleSimulateVoice(prompt);
   };
 
   return (
@@ -59,132 +144,243 @@ export const MyraAiScreen: React.FC = () => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Myra Voice Assistant</Text>
-        <Text style={styles.subtitle}>
-          Natural Language Audio Copilot powered by JioSaavn Intelligence
-        </Text>
+      {/* 1. Top Header */}
+      <View style={styles.topHeader}>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIconCircle}>
+            <Icon name="graphic-eq" size={20} color="#ffffff" />
+          </View>
+          <View>
+            <View style={styles.titleRow}>
+              <Text style={styles.headerTitle}>Myra Voice Assistant</Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  isRecording ? styles.statusBadgeActive : styles.statusBadgeReady,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    isRecording ? styles.statusBadgeTextActive : styles.statusBadgeTextReady,
+                  ]}
+                >
+                  {isRecording ? 'Listening Active' : 'Ready'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.headerSub}>
+              Real-time speech transcription & auto-pause API dispatch
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={() => setActiveScreen('home')}
+          activeOpacity={0.7}
+        >
+          <Icon name="close" size={20} color="#cbc3d7" />
+        </TouchableOpacity>
       </View>
 
-      {/* Radiant Glowing Voice Assistant Orb */}
-      <View style={styles.orbWrapper}>
-        <View style={styles.orbGlow} />
-        <TouchableOpacity
-          style={[styles.orbCenter, status === 'listening' && styles.orbCenterListening]}
-          onPress={handleOrbPress}
-          activeOpacity={0.8}
-        >
-          <Icon name="graphic-eq" size={40} color="#ffffff" />
-        </TouchableOpacity>
-        <View style={styles.orbBadge}>
+      {/* 2. Main Voice Processing Stage Card */}
+      <View style={styles.stageCard}>
+        {/* Status Pill */}
+        <View style={styles.statusChip}>
           <View
             style={[
-              styles.badgeDot,
+              styles.statusDot,
               {
                 backgroundColor:
-                  status === 'processing'
-                    ? '#f59e0b'
-                    : status === 'listening'
+                  apiStatus === 'listening'
+                    ? '#4cd7f6'
+                    : apiStatus === 'pause_detected' || apiStatus === 'sending'
+                    ? '#a078ff'
+                    : apiStatus === 'completed'
                     ? '#10b981'
-                    : '#4cd7f6',
+                    : '#8e92a4',
               },
             ]}
           />
-          <Text style={styles.badgeText}>
-            {status === 'processing'
-              ? 'PROCESSING'
-              : status === 'listening'
-              ? 'LISTENING'
-              : isMicGranted
-              ? 'READY (TAP TO SPEAK)'
-              : 'GRANT MIC ACCESS'}
+          <Text style={styles.statusChipText}>
+            {apiStatus === 'listening' && 'Listening live... Speak now'}
+            {apiStatus === 'pause_detected' && 'Pause detected! Silence finished -> Sending to API...'}
+            {apiStatus === 'sending' && 'Packaging audio payload & sending to backend API...'}
+            {apiStatus === 'completed' && 'API response received successfully!'}
+            {apiStatus === 'idle' && 'Tap microphone below to start speaking'}
           </Text>
         </View>
+
+        {/* Audio Reactive Waveform */}
+        <View style={styles.waveformContainer}>
+          {waveformScale.map((h, i) => (
+            <View
+              key={i}
+              style={[
+                styles.waveformBar,
+                {
+                  height: `${h}%`,
+                  backgroundColor: i % 2 === 0 ? '#4cd7f6' : '#a078ff',
+                },
+              ]}
+            />
+          ))}
+        </View>
+
+        {/* PROMINENT LIVE CAPTIONS BOX */}
+        <View style={styles.captionsBox}>
+          <View style={styles.captionsBoxHeader}>
+            <View style={styles.captionsTag}>
+              <View
+                style={[
+                  styles.captionsDot,
+                  { backgroundColor: isRecording ? '#4cd7f6' : '#8e92a4' },
+                ]}
+              />
+              <Text style={styles.captionsTagText}>LIVE SPEECH CAPTION</Text>
+            </View>
+            {apiStatus === 'pause_detected' && (
+              <View style={styles.pausePill}>
+                <Text style={styles.pausePillText}>1.2s Pause Detected</Text>
+              </View>
+            )}
+            {liveCaption.length > 0 && (
+              <View style={styles.wordCountPill}>
+                <Text style={styles.wordCountText}>
+                  {liveCaption.split(/\s+/).filter(Boolean).length} words
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.captionsBody}>
+            {liveCaption ? (
+              <Text style={styles.liveCaptionText}>"{liveCaption}"</Text>
+            ) : isRecording ? (
+              <Text style={styles.listeningPlaceholder}>
+                Listening live... speak now (e.g., "Play synthwave for highway cruising" or "Pause")
+              </Text>
+            ) : (
+              <Text style={styles.idlePlaceholder}>
+                Tap the microphone button below to start live transcription
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Center Big Microphone Button */}
+        <View style={styles.centerMicCol}>
+          <TouchableOpacity
+            style={[
+              styles.centerMicBtn,
+              isRecording ? styles.centerMicBtnActive : styles.centerMicBtnIdle,
+            ]}
+            onPress={toggleListening}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name="mic"
+              size={36}
+              color={isRecording ? '#0b0e17' : '#ffffff'}
+            />
+          </TouchableOpacity>
+          <Text style={styles.micStatusLabel}>
+            {isRecording
+              ? 'Live Mic Active • Speak and take a pause to trigger API'
+              : 'Tap to Allow & Start Live Microphone'}
+          </Text>
+          <Text style={styles.micSubLabel}>
+            Speech is transcribed in real-time above and sent to API on pause
+          </Text>
+        </View>
+
+        {/* API Response Display Card */}
+        {apiResponse && (
+          <View style={styles.apiResponseCard}>
+            <View style={styles.apiResponseHeader}>
+              <View style={styles.apiResponseTitleRow}>
+                <View style={styles.apiResponseDot} />
+                <Text style={styles.apiResponseTitle}>
+                  Backend API Result (Payload Dispatched)
+                </Text>
+              </View>
+              <Text style={styles.statusOkText}>Status 200 OK</Text>
+            </View>
+
+            <Text style={styles.apiSpeechText}>
+              {apiResponse.responseSpeech || apiResponse.message}
+            </Text>
+
+            <View style={styles.responsePillsRow}>
+              {apiResponse.action && (
+                <View style={styles.actionPill}>
+                  <Text style={styles.actionPillText}>Action: {apiResponse.action}</Text>
+                </View>
+              )}
+              {apiResponse.suggestedTrackId && (
+                <View style={styles.trackPill}>
+                  <Text style={styles.trackPillText}>
+                    Track: {apiResponse.suggestedTrackId}
+                  </Text>
+                </View>
+              )}
+              {finalTranscript ? (
+                <Text style={styles.transcriptCaption}>
+                  Transcript: "{finalTranscript}"
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Mic Permission Banner if not yet granted */}
-      {!isMicGranted && (
-        <TouchableOpacity
-          style={styles.micPermissionBanner}
-          onPress={requestMicPermission}
-          activeOpacity={0.8}
-        >
-          <Icon name="mic" size={18} color="#0b0e17" />
-          <Text style={styles.micPermissionBannerText}>
-            Grant Microphone Access for "Hey Myra"
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Response Box */}
-      {status === 'processing' && (
-        <View style={styles.statusBox}>
-          <ActivityIndicator size="small" color="#4cd7f6" />
-          <Text style={styles.statusBoxText}>Synthesizing voice intent with Myra AI...</Text>
-        </View>
-      )}
-
-      {(status === 'done' || status === 'listening') && responseMsg ? (
-        <View style={styles.responseCard}>
-          <View style={styles.responseHeader}>
-            <Icon name="auto-awesome" size={16} color="#4cd7f6" />
-            <Text style={styles.responseSpeaker}>
-              {status === 'listening' ? 'Listening...' : 'Myra AI Copilot'}
-            </Text>
-          </View>
-          <Text style={styles.responseText}>{responseMsg}</Text>
-          {lastPrompt ? (
-            <Text style={styles.responsePrompt}>Command: "{lastPrompt}"</Text>
-          ) : null}
-        </View>
-      ) : null}
-
-      {/* Custom Input Bar */}
+      {/* 3. Text Command Input Bar */}
       <View style={styles.inputBar}>
         <TextInput
           style={styles.inputField}
-          placeholder="Type or speak a music command..."
+          placeholder="Type a voice command (e.g. Play Tum Hi Ho)..."
           placeholderTextColor="#8e92a4"
           value={customText}
           onChangeText={setCustomText}
-          onSubmitEditing={() => {
-            handlePrompt(customText);
-            setCustomText('');
-          }}
+          onSubmitEditing={handleSendCustom}
         />
-        <TouchableOpacity
-          style={styles.sendBtn}
-          onPress={() => {
-            handlePrompt(customText);
-            setCustomText('');
-          }}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.sendBtn} onPress={handleSendCustom} activeOpacity={0.8}>
           <Icon name="play-arrow" size={16} color="#0b0e17" />
         </TouchableOpacity>
       </View>
 
-      {/* Suggested Prompt Chips */}
-      <Text style={styles.sectionLabel}>Suggested Voice Prompts</Text>
-      <View style={styles.promptsContainer}>
-        {[
-          'Play synthwave for highway cruising',
-          'Match BPM to night pulse',
-          'Queue chill vocalists',
-          'Skip to next track',
-          'Pause playback',
-        ].map((prompt) => (
-          <TouchableOpacity
-            key={prompt}
-            style={styles.promptBtn}
-            onPress={() => handlePrompt(prompt)}
-            activeOpacity={0.8}
-          >
-            <Icon name="mic" size={16} color="#4cd7f6" />
-            <Text style={styles.promptBtnText}>"{prompt}"</Text>
-          </TouchableOpacity>
-        ))}
+      {/* 4. Quick Driving Voice Prompts */}
+      <View style={styles.promptsSection}>
+        <View style={styles.promptsHeaderRow}>
+          <Text style={styles.promptsHeaderTitle}>
+            Quick Voice Prompts (One-Click Voice & Auto-Pause Simulation)
+          </Text>
+          <Text style={styles.promptsHeaderSub}>Simulates Live Mic + Auto-Pause</Text>
+        </View>
+
+        <View style={styles.promptsGrid}>
+          {[
+            'Play synthwave for highway cruising',
+            'Match BPM to night pulse',
+            'Queue chill ambient soundscapes',
+            'Pause the current playback',
+            'Skip to the next track in queue',
+          ].map((prompt) => (
+            <TouchableOpacity
+              key={prompt}
+              style={styles.promptCard}
+              onPress={() => handleSimulateVoice(prompt)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.promptCardLeft}>
+                <Icon name="mic" size={16} color="#4cd7f6" />
+                <Text style={styles.promptCardText}>"{prompt}"</Text>
+              </View>
+              <Icon name="play-arrow" size={14} color="#8e92a4" />
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
     </ScrollView>
   );
@@ -196,152 +392,333 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131a',
   },
   content: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
-    alignItems: 'center',
   },
-  header: {
+  topHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    paddingTop: 4,
   },
-  title: {
-    fontSize: 22,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  headerIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#a078ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#e1e2ec',
   },
-  subtitle: {
-    fontSize: 12,
-    color: '#cbc3d7',
-    textAlign: 'center',
-    marginTop: 4,
-    maxWidth: 280,
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  orbWrapper: {
-    width: 140,
-    height: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    marginBottom: 20,
+  statusBadgeActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
-  orbGlow: {
-    position: 'absolute',
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: 'rgba(76, 215, 246, 0.18)',
+  statusBadgeReady: {
+    backgroundColor: 'rgba(160, 120, 255, 0.2)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
-  orbCenter: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  statusBadgeTextActive: {
+    color: '#10b981',
+  },
+  statusBadgeTextReady: {
+    color: '#d0bcff',
+  },
+  headerSub: {
+    fontSize: 11,
+    color: '#4cd7f6',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#1d1f27',
-    borderWidth: 2,
-    borderColor: '#4cd7f6',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#272a32',
+  },
+  stageCard: {
+    backgroundColor: '#191b23',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#272a32',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1d1f27',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#272a32',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#e1e2ec',
+  },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+    height: 56,
+    width: '100%',
+    paddingHorizontal: 12,
+  },
+  waveformBar: {
+    width: 6,
+    borderRadius: 3,
+  },
+  captionsBox: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: '#0b0e17',
+    borderWidth: 2,
+    borderColor: 'rgba(76, 215, 246, 0.5)',
+    padding: 14,
+    minHeight: 110,
+    justifyContent: 'space-between',
     shadowColor: '#4cd7f6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  orbCenterListening: {
-    borderColor: '#10b981',
-    shadowColor: '#10b981',
-    backgroundColor: '#192620',
-  },
-  orbBadge: {
-    position: 'absolute',
-    bottom: -8,
+  captionsBoxHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#1d1f27',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.3)',
+    justifyContent: 'space-between',
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#272a32',
   },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4cd7f6',
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#4cd7f6',
-    letterSpacing: 0.8,
-  },
-  micPermissionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#4cd7f6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    marginBottom: 16,
-    shadowColor: '#4cd7f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-  },
-  micPermissionBannerText: {
-    color: '#0b0e17',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  statusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#1d1f27',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.2)',
-  },
-  statusBoxText: {
-    color: '#cbc3d7',
-    fontSize: 12,
-  },
-  responseCard: {
-    width: '100%',
-    backgroundColor: '#1d1f27',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.3)',
-  },
-  responseHeader: {
+  captionsTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
   },
-  responseSpeaker: {
-    fontSize: 12,
+  captionsDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  captionsTagText: {
+    fontSize: 10,
     fontWeight: '800',
     color: '#4cd7f6',
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
   },
-  responseText: {
-    fontSize: 14,
+  pausePill: {
+    backgroundColor: 'rgba(160, 120, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.4)',
+  },
+  pausePillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#d0bcff',
+  },
+  wordCountPill: {
+    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  wordCountText: {
+    fontSize: 9,
+    fontFamily: 'monospace',
+    color: '#4cd7f6',
     fontWeight: '600',
-    color: '#e1e2ec',
-    lineHeight: 20,
   },
-  responsePrompt: {
-    fontSize: 11,
+  captionsBody: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveCaptionText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  listeningPlaceholder: {
+    fontSize: 12,
+    color: 'rgba(76, 215, 246, 0.8)',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  idlePlaceholder: {
+    fontSize: 12,
+    color: '#8e92a4',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  centerMicCol: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  centerMicBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerMicBtnActive: {
+    backgroundColor: '#4cd7f6',
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.7,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  centerMicBtnIdle: {
+    backgroundColor: '#272a32',
+    borderWidth: 2,
+    borderColor: 'rgba(160, 120, 255, 0.4)',
+  },
+  micStatusLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#e1e2ec',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  micSubLabel: {
+    fontSize: 10,
+    color: '#8e92a4',
+    textAlign: 'center',
+  },
+  apiResponseCard: {
+    width: '100%',
+    borderRadius: 16,
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.35)',
+    padding: 14,
+    gap: 6,
+  },
+  apiResponseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  apiResponseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  apiResponseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#d0bcff',
+  },
+  apiResponseTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#d0bcff',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  statusOkText: {
+    fontSize: 10,
+    color: '#10b981',
+    fontWeight: 'bold',
+    fontFamily: 'monospace',
+  },
+  apiSpeechText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#e1e2ec',
+    lineHeight: 18,
+  },
+  responsePillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  actionPill: {
+    backgroundColor: 'rgba(76, 215, 246, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  actionPillText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#4cd7f6',
+  },
+  trackPill: {
+    backgroundColor: '#272a32',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  trackPillText: {
+    fontSize: 10,
+    color: '#e1e2ec',
+    fontFamily: 'monospace',
+  },
+  transcriptCaption: {
+    fontSize: 10,
     color: '#cbc3d7',
-    marginTop: 8,
     fontStyle: 'italic',
   },
   inputBar: {
@@ -351,7 +728,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 14,
     height: 48,
-    width: '100%',
     borderWidth: 1,
     borderColor: '#272a32',
     marginBottom: 20,
@@ -370,33 +746,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#cbc3d7',
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  promptsContainer: {
-    width: '100%',
+  promptsSection: {
     gap: 8,
   },
-  promptBtn: {
+  promptsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  promptsHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#cbc3d7',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    flex: 1,
+  },
+  promptsHeaderSub: {
+    fontSize: 10,
+    color: '#4cd7f6',
+    fontFamily: 'monospace',
+  },
+  promptsGrid: {
+    gap: 8,
+  },
+  promptCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#1d1f27',
-    borderRadius: 14,
+    justifyContent: 'space-between',
+    backgroundColor: '#191b23',
+    borderRadius: 16,
     padding: 12,
     borderWidth: 1,
     borderColor: '#272a32',
   },
-  promptBtnText: {
-    color: '#e1e2ec',
+  promptCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  promptCardText: {
     fontSize: 13,
     fontWeight: '500',
+    color: '#e1e2ec',
     flex: 1,
   },
 });

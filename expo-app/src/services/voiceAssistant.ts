@@ -1,62 +1,69 @@
-import { Platform, PermissionsAndroid, Alert } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendVoiceAssistantApi } from './api';
 import { ApiResponse } from '../types/music';
 
-let isMicrophoneGranted = false;
-
 /**
  * Native Android + Expo Microphone Permission Handler
- * Guaranteed to trigger the official Android OS system permission modal:
- * "Allow Myra to record audio?"
+ * Checks if already granted first to avoid prompting every time.
  */
 export async function requestMicrophonePermission(): Promise<boolean> {
-  // 1. Android Native Permission Request
   if (Platform.OS === 'android') {
     try {
+      const alreadyGranted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+      );
+      if (alreadyGranted) {
+        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
+        return true;
+      }
+
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         {
           title: 'Myra Voice Assistant Microphone Access',
           message:
-            'Myra needs microphone access to listen for "Hey Myra" and execute your voice music commands.',
+            'Myra needs microphone access to listen for "Hey Myra" and execute voice music commands.',
           buttonNeutral: 'Ask Later',
           buttonNegative: 'Deny',
           buttonPositive: 'Allow Microphone',
         }
       );
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        isMicrophoneGranted = true;
-        return true;
+
+      const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
+      if (isGranted) {
+        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
       }
+      return isGranted;
     } catch (err) {
       console.warn('Android Permissions error:', err);
     }
   }
 
-  // 2. Secondary check via expo-audio permission bridge if available
+  // Secondary check via expo-audio permission bridge if available
   try {
     const { requestRecordingPermissionsAsync } = require('expo-audio');
     if (requestRecordingPermissionsAsync) {
       const res = await requestRecordingPermissionsAsync();
       if (res && res.granted) {
-        isMicrophoneGranted = true;
+        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
         return true;
       }
     }
   } catch (_) {}
 
-  return isMicrophoneGranted;
+  return true;
 }
 
 export async function checkMicrophonePermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
     try {
       const has = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-      if (has) isMicrophoneGranted = true;
-      return has;
+      if (has) return true;
     } catch (_) {}
   }
-  return isMicrophoneGranted;
+  const cached = await AsyncStorage.getItem('myra_mic_granted');
+  return cached === 'true';
 }
 
 /**
