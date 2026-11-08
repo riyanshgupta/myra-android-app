@@ -11,9 +11,108 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  PanResponder,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
+
+const InteractiveScrubber: React.FC<{
+  currentTime: number;
+  duration: number;
+  seekTo: (secs: number) => void;
+  isLandscape: boolean;
+}> = ({ currentTime, duration, seekTo, isLandscape }) => {
+  const [layoutWidth, setLayoutWidth] = useState<number>(300);
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [scrubTime, setScrubTime] = useState<number>(currentTime);
+  const thumbScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!isScrubbing) {
+      setScrubTime(currentTime);
+    }
+  }, [currentTime, isScrubbing]);
+
+  const activeTime = isScrubbing ? scrubTime : currentTime;
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (activeTime / duration) * 100)) : 0;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        setIsScrubbing(true);
+        Animated.spring(thumbScale, { toValue: 1.35, useNativeDriver: true }).start();
+        const touchX = evt.nativeEvent.locationX;
+        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
+        setScrubTime(ratio * duration);
+      },
+      onPanResponderMove: (evt) => {
+        const touchX = evt.nativeEvent.locationX;
+        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
+        setScrubTime(ratio * duration);
+      },
+      onPanResponderRelease: (evt) => {
+        Animated.spring(thumbScale, { toValue: 1, useNativeDriver: true }).start();
+        const touchX = evt.nativeEvent.locationX;
+        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
+        const finalSecs = ratio * duration;
+        setScrubTime(finalSecs);
+        seekTo(finalSecs);
+        setTimeout(() => setIsScrubbing(false), 200);
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(thumbScale, { toValue: 1, useNativeDriver: true }).start();
+        setIsScrubbing(false);
+      },
+    })
+  ).current;
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '00:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <View style={styles.scrubberContainer}>
+      <View
+        style={styles.trackBackgroundContainer}
+        onLayout={(e) => setLayoutWidth(e.nativeEvent.layout.width)}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.trackBackground}>
+          <View style={[styles.trackFill, { width: `${progressPercent}%` }]} />
+        </View>
+        <Animated.View
+          style={[
+            styles.thumb,
+            {
+              left: `${Math.max(0, Math.min(96, progressPercent))}%`,
+              transform: [{ scale: thumbScale }],
+            },
+          ]}
+        >
+          <View style={styles.thumbCenterDot} />
+        </Animated.View>
+      </View>
+
+      <View style={styles.timeRow}>
+        <Text style={[styles.timeText, isScrubbing && styles.timeTextActive]}>
+          {formatTime(activeTime)}
+        </Text>
+        <View style={styles.audioModesRow}>
+          <Text style={[styles.modeTag, isScrubbing && styles.modeTagActive]}>
+            {isScrubbing ? 'SCRUBBING' : 'AUTO-SKIP'}
+          </Text>
+          <Text style={styles.modeTag}>CROSSFADE 4S</Text>
+        </View>
+        <Text style={styles.timeText}>{formatTime(duration)}</Text>
+      </View>
+    </View>
+  );
+};
 
 export const PlayerScreen: React.FC = () => {
   const {
@@ -36,7 +135,6 @@ export const PlayerScreen: React.FC = () => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
-  const [scrubberWidth, setScrubberWidth] = useState<number>(0);
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [isRepeat, setIsRepeat] = useState<boolean>(false);
 
@@ -85,7 +183,7 @@ export const PlayerScreen: React.FC = () => {
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconCircle}>
-          <Icon name="graphic-eq" size={32} color="#4cd7f6" />
+          <Icon name="graphic-eq" size={32} color="#a078ff" />
         </View>
         <Text style={styles.emptyTitle}>No Track Playing</Text>
         <Text style={styles.emptySub}>
@@ -103,22 +201,6 @@ export const PlayerScreen: React.FC = () => {
   }
 
   const isLiked = Boolean(likedTracks[currentTrack.id]);
-
-  const formatTime = (secs: number) => {
-    if (isNaN(secs) || secs < 0) return '00:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-
-  const handleScrubberPress = (e: any) => {
-    const { locationX } = e.nativeEvent;
-    const barWidth = scrubberWidth > 0 ? scrubberWidth : isLandscape ? width * 0.45 : width - 40;
-    const ratio = Math.max(0, Math.min(1, locationX / barWidth));
-    seekTo(ratio * duration);
-  };
 
   const replay10 = () => {
     seekTo(Math.max(0, currentTime - 10));
@@ -171,7 +253,7 @@ export const PlayerScreen: React.FC = () => {
           activeOpacity={0.7}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Icon name="graphic-eq" size={20} color="#4cd7f6" />
+          <Icon name="graphic-eq" size={20} color="#d0bcff" />
         </TouchableOpacity>
       </View>
 
@@ -224,7 +306,7 @@ export const PlayerScreen: React.FC = () => {
                       styles.waveBar,
                       {
                         height: isPlaying ? h * 2.1 : 4,
-                        backgroundColor: i % 2 === 0 ? '#4cd7f6' : '#a078ff',
+                        backgroundColor: i % 2 === 0 ? '#a078ff' : '#4cd7f6',
                       },
                     ]}
                   />
@@ -259,7 +341,7 @@ export const PlayerScreen: React.FC = () => {
                 styles.likeBtn,
                 isLiked ? styles.likeBtnActive : styles.likeBtnInactive,
               ]}
-              onPress={() => toggleLike(currentTrack)}
+              onPress={() => toggleLike(currentTrack.id)}
               activeOpacity={0.7}
             >
               <Icon
@@ -270,34 +352,13 @@ export const PlayerScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Interactive Progress Bar Scrubber */}
-          <View style={styles.scrubberContainer}>
-            <TouchableOpacity
-              style={styles.trackBackground}
-              onLayout={(e) => setScrubberWidth(e.nativeEvent.layout.width)}
-              onPress={handleScrubberPress}
-              activeOpacity={0.9}
-            >
-              <View style={[styles.trackFill, { width: `${progressPercent}%` }]} />
-              <View
-                style={[
-                  styles.thumb,
-                  { left: `${Math.max(0, Math.min(97, progressPercent))}%` },
-                ]}
-              >
-                <View style={styles.thumbCenterDot} />
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.timeRow}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <View style={styles.audioModesRow}>
-                <Text style={styles.modeTag}>AUTO-SKIP</Text>
-                <Text style={styles.modeTag}>CROSSFADE 4S</Text>
-              </View>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            </View>
-          </View>
+          {/* DRAGGABLE Interactive Scrubber Bar */}
+          <InteractiveScrubber
+            currentTime={currentTime}
+            duration={duration}
+            seekTo={seekTo}
+            isLandscape={isLandscape}
+          />
 
           {/* Auxiliary Screen Actions Row (Lyrics, Queue, Add) */}
           <View style={styles.auxRow}>
@@ -306,7 +367,7 @@ export const PlayerScreen: React.FC = () => {
               onPress={() => setActiveScreen('myra-ai')}
               activeOpacity={0.7}
             >
-              <Icon name="lyrics" size={15} color="#4cd7f6" />
+              <Icon name="lyrics" size={15} color="#d0bcff" />
               <Text style={styles.auxPillText}>Lyrics</Text>
             </TouchableOpacity>
 
@@ -331,7 +392,7 @@ export const PlayerScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Main Playback Control Bar with tactile animations */}
+          {/* Main Playback Control Bar with rich purple play button matching web */}
           <View style={styles.controlsRow}>
             {/* Shuffle */}
             <TouchableOpacity
@@ -342,7 +403,7 @@ export const PlayerScreen: React.FC = () => {
               <Icon
                 name="shuffle"
                 size={20}
-                color={isShuffle ? '#4cd7f6' : '#8e92a4'}
+                color={isShuffle ? '#d0bcff' : '#8e92a4'}
               />
             </TouchableOpacity>
 
@@ -364,7 +425,7 @@ export const PlayerScreen: React.FC = () => {
               <Icon name="skip-previous" size={28} color="#ffffff" />
             </TouchableOpacity>
 
-            {/* Grand Center Animated Play/Pause Action Button */}
+            {/* Grand Center Animated Rich Purple Play/Pause Button */}
             <Animated.View style={{ transform: [{ scale: playScale }] }}>
               <TouchableOpacity
                 style={styles.playPauseBtn}
@@ -376,7 +437,7 @@ export const PlayerScreen: React.FC = () => {
                 <Icon
                   name={isPlaying ? 'pause' : 'play-arrow'}
                   size={34}
-                  color="#0b0e17"
+                  color="#ffffff"
                 />
               </TouchableOpacity>
             </Animated.View>
@@ -408,7 +469,7 @@ export const PlayerScreen: React.FC = () => {
               <Icon
                 name="repeat"
                 size={20}
-                color={isRepeat ? '#4cd7f6' : '#8e92a4'}
+                color={isRepeat ? '#d0bcff' : '#8e92a4'}
               />
             </TouchableOpacity>
           </View>
@@ -427,7 +488,7 @@ export const PlayerScreen: React.FC = () => {
                 Ask Myra: "Queue similar tracks"
               </Text>
             </View>
-            <Icon name="play-arrow" size={14} color="#4cd7f6" />
+            <Icon name="play-arrow" size={14} color="#d0bcff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -474,7 +535,7 @@ const styles = StyleSheet.create({
   headerCategory: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#4cd7f6',
+    color: '#d0bcff',
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
@@ -488,24 +549,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(76, 215, 246, 0.12)',
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.3)',
+    borderColor: 'rgba(160, 120, 255, 0.35)',
     marginTop: 2,
   },
   atmosDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#d0bcff',
   },
   atmosText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   badgesRow: {
     flexDirection: 'row',
@@ -529,7 +590,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
   },
   deviceText: {
     fontSize: 10,
@@ -574,11 +635,11 @@ const styles = StyleSheet.create({
   },
   artworkGlow: {
     position: 'absolute',
-    backgroundColor: 'rgba(76, 215, 246, 0.08)',
-    shadowColor: '#4cd7f6',
+    backgroundColor: 'rgba(160, 120, 255, 0.12)',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
-    shadowRadius: 28,
+    shadowOpacity: 0.5,
+    shadowRadius: 30,
   },
   artworkWrapper: {
     borderRadius: 22,
@@ -618,7 +679,7 @@ const styles = StyleSheet.create({
   spatialOverlayLabel: {
     fontSize: 8,
     fontWeight: '800',
-    color: '#4cd7f6',
+    color: '#d0bcff',
     letterSpacing: 1.2,
   },
   controlsColumn: {
@@ -674,11 +735,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   likeBtnActive: {
-    backgroundColor: 'rgba(255, 81, 106, 0.15)',
-    borderColor: 'rgba(255, 81, 106, 0.4)',
+    backgroundColor: 'rgba(255, 81, 106, 0.2)',
+    borderColor: '#ff516a',
   },
   likeBtnInactive: {
     backgroundColor: '#1d1f27',
@@ -687,50 +748,64 @@ const styles = StyleSheet.create({
   scrubberContainer: {
     width: '100%',
     gap: 6,
+    marginVertical: 4,
+  },
+  trackBackgroundContainer: {
+    height: 28,
+    width: '100%',
+    justifyContent: 'center',
+    position: 'relative',
   },
   trackBackground: {
     height: 6,
     borderRadius: 3,
     backgroundColor: '#272a32',
-    position: 'relative',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    width: '100%',
   },
   trackFill: {
     height: '100%',
     borderRadius: 3,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
   },
   thumb: {
     position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#ffffff',
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 5,
-    marginLeft: -7,
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 8,
+    marginLeft: -9,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#a078ff',
   },
   thumbCenterDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#10131a',
+    backgroundColor: '#340080',
   },
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 2,
   },
   timeText: {
     fontSize: 11,
     color: '#8e92a4',
     fontFamily: 'monospace',
     fontWeight: '600',
+  },
+  timeTextActive: {
+    color: '#d0bcff',
+    fontWeight: '800',
   },
   audioModesRow: {
     flexDirection: 'row',
@@ -742,6 +817,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#8e92a4',
     letterSpacing: 0.8,
+  },
+  modeTagActive: {
+    color: '#a078ff',
   },
   auxRow: {
     flexDirection: 'row',
@@ -762,7 +840,7 @@ const styles = StyleSheet.create({
   },
   auxPillHighlight: {
     backgroundColor: '#272a32',
-    borderColor: 'rgba(76, 215, 246, 0.3)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   auxPillText: {
     fontSize: 11,
@@ -799,19 +877,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playPauseBtn: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: '#4cd7f6',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#a078ff',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: '#d0bcff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4cd7f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 18,
-    elevation: 12,
+    shadowColor: '#a078ff',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 14,
   },
   voiceAssistantPill: {
     flexDirection: 'row',
@@ -822,12 +900,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.35)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
     marginTop: 4,
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
   voiceAssistantLeft: {
     flexDirection: 'row',

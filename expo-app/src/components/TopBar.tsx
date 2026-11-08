@@ -63,14 +63,14 @@ export const TopBar: React.FC = () => {
             style={styles.actionMicBtn}
             onPress={handleMicPress}
           >
-            <Icon name="mic" size={18} color="#4cd7f6" />
+            <Icon name="mic" size={18} color="#d0bcff" />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.profileBadge}
             onPress={() => setProfileModalOpen(true)}
           >
-            <Icon name="account-circle" size={18} color="#4cd7f6" />
+            <Icon name="account-circle" size={18} color="#d0bcff" />
             <Text style={styles.profileText} numberOfLines={1}>
               {currentUser ? currentUser.username : 'User'}
             </Text>
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.4)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   profileBadge: {
     flexDirection: 'row',
@@ -231,13 +231,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.3)',
+    borderColor: 'rgba(160, 120, 255, 0.35)',
     maxWidth: 96,
   },
   profileText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   modalOverlay: {
     flex: 1,

@@ -46,7 +46,7 @@ interface PlayerContextType {
   activeMood: string;
   setActiveMood: (mood: string) => void;
   likedTracks: Record<string, boolean>;
-  toggleLike: (track: Track) => Promise<void>;
+  toggleLike: (trackOrId: Track | string) => Promise<void>;
   playTrack: (track: Track, options?: { explicitQueue?: Track[]; keepCurrentQueue?: boolean }) => Promise<void>;
   togglePlay: () => Promise<void>;
   pauseTrack: () => Promise<void>;
@@ -300,34 +300,54 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const loadUserFavorites = async () => {
     try {
-      const favs = await getFavoritesApi();
       const map: Record<string, boolean> = {};
-      favs.forEach((t) => {
-        if (t.id) map[t.id] = true;
-      });
+      
+      // 1. Load from AsyncStorage first (instant offline & local persistence)
+      const cachedFavs = await AsyncStorage.getItem('myra_liked_tracks');
+      if (cachedFavs) {
+        const parsed = JSON.parse(cachedFavs);
+        if (typeof parsed === 'object' && parsed !== null) {
+          Object.assign(map, parsed);
+        }
+      }
+
+      // 2. Sync with backend API if logged in
+      if (getCurrentUser()) {
+        const favs = await getFavoritesApi();
+        (favs || []).forEach((t) => {
+          if (t && t.id) map[t.id] = true;
+        });
+      }
+
       setLikedTracks(map);
+      await AsyncStorage.setItem('myra_liked_tracks', JSON.stringify(map));
     } catch (_) {}
   };
 
-  const toggleLike = async (track: Track) => {
-    if (!track || !track.id) return;
-    const isCurrentlyLiked = Boolean(likedTracks[track.id]);
-    setLikedTracks((prev) => ({
-      ...prev,
-      [track.id]: !isCurrentlyLiked,
-    }));
+  const toggleLike = async (trackOrId: Track | string) => {
+    if (!trackOrId) return;
+    const id = typeof trackOrId === 'string' ? trackOrId : trackOrId.id;
+    if (!id) return;
 
+    const isCurrentlyLiked = Boolean(likedTracks[id]);
+    const nextState = !isCurrentlyLiked;
+
+    // Instant optimistic state & local AsyncStorage update
+    setLikedTracks((prev) => {
+      const updated = { ...prev, [id]: nextState };
+      AsyncStorage.setItem('myra_liked_tracks', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+
+    // Sync with backend API asynchronously
     try {
       if (isCurrentlyLiked) {
-        await removeFavoriteTrackApi(track.id);
+        await removeFavoriteTrackApi(id);
       } else {
-        await addFavoriteTrackApi(track.id);
+        await addFavoriteTrackApi(id);
       }
     } catch (_) {
-      setLikedTracks((prev) => ({
-        ...prev,
-        [track.id]: isCurrentlyLiked,
-      }));
+      // Retain optimistic local state so user's favorite choice is never lost
     }
   };
 

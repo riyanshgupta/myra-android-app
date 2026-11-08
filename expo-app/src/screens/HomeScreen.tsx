@@ -69,7 +69,7 @@ export const HomeScreen: React.FC = () => {
             <Text style={styles.greetingTitle}>
               Good evening{currentUser ? `, @${currentUser.username}` : ''}
             </Text>
-            <Icon name="auto-awesome" size={20} color="#4cd7f6" />
+            <Icon name="auto-awesome" size={20} color="#a078ff" />
           </View>
           <Text style={styles.greetingSub}>Myra Intelligent Audio Copilot</Text>
         </View>
@@ -79,7 +79,7 @@ export const HomeScreen: React.FC = () => {
           onPress={() => setIsAuthModalOpen(true)}
           activeOpacity={0.7}
         >
-          <Icon name="account-circle" size={16} color="#4cd7f6" />
+          <Icon name="account-circle" size={16} color="#d0bcff" />
           <Text style={styles.profileChipText}>
             {currentUser ? currentUser.username : 'Sign In'}
           </Text>
@@ -278,7 +278,7 @@ export const HomeScreen: React.FC = () => {
                 <Icon
                   name={isThisPlaying ? 'pause' : 'play-arrow'}
                   size={14}
-                  color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
+                  color={isThisPlaying ? '#ffffff' : '#a078ff'}
                 />
               </View>
             </TouchableOpacity>
@@ -332,12 +332,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.3)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   profileChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   moodsCarousel: {
     flexDirection: 'row',
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.25)',
+    borderColor: 'rgba(160, 120, 255, 0.35)',
     marginBottom: 24,
     position: 'relative',
     overflow: 'hidden',
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(76, 215, 246, 0.12)',
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
   },
   ambientGlowLeft: {
     position: 'absolute',
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#d0bcff',
   },
   aiTagRow: {
     flexDirection: 'row',
@@ -539,13 +539,13 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   pulsingSectionDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
   },
   sectionMeta: {
     fontSize: 12,
@@ -583,11 +583,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.4)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   recentPlayBadgeActive: {
-    backgroundColor: '#4cd7f6',
-    borderColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
+    borderColor: '#d0bcff',
   },
   recentTitle: {
     fontSize: 12,
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   },
   trackCardActive: {
     backgroundColor: '#272a32',
-    borderColor: 'rgba(76, 215, 246, 0.4)',
+    borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   trackCover: {
     width: 48,
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     color: '#e1e2ec',
   },
   trackTitleActive: {
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   trackArtist: {
     fontSize: 11,
@@ -664,6 +664,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playPillActive: {
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
   },
 });

@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#1d1f27',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(76, 215, 246, 0.2)',
+    borderTopColor: 'rgba(160, 120, 255, 0.25)',
   },
   progressTrack: {
     height: 2,
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
   },
   innerRow: {
     flexDirection: 'row',
@@ -94,22 +94,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   artist: {
-    color: '#4cd7f6',
+    color: '#d0bcff',
     fontSize: 11,
     marginTop: 2,
     fontWeight: '500',
   },
   playBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#4cd7f6',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#a078ff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });

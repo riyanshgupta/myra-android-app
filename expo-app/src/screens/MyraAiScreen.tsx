@@ -9,6 +9,7 @@ import {
   Keyboard,
   Platform,
   StatusBar,
+  Clipboard,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
@@ -34,6 +35,10 @@ export const MyraAiScreen: React.FC = () => {
   const [waveformScale, setWaveformScale] = useState<number[]>(WAVE_BARS.map(() => 15));
   const [nativeSpeechAvailable, setNativeSpeechAvailable] = useState<boolean>(false);
 
+  // Live Debug Diagnostics Logs
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebugConsole, setShowDebugConsole] = useState<boolean>(true);
+
   const waveTimerRef = useRef<any>(null);
   const streamTimerRef = useRef<any>(null);
   const pauseTimerRef = useRef<any>(null);
@@ -41,18 +46,29 @@ export const MyraAiScreen: React.FC = () => {
   const speechModuleRef = useRef<any>(null);
   const listenersRef = useRef<any[]>([]);
 
-  // Initialize native speech recognition module if available
+  const addLog = (tag: string, message: string) => {
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const logLine = `[${timestamp}] [${tag}] ${message}`;
+    console.log(`[Myra AI Log] ${logLine}`);
+    setDebugLogs((prev) => [logLine, ...prev].slice(0, 35));
+  };
+
+  // Initialize diagnostics and native speech recognition module if available
   useEffect(() => {
     let isMounted = true;
+
+    addLog('INIT', `Myra AI Screen mounted on ${Platform.OS.toUpperCase()}`);
 
     try {
       const speechMod = require('expo-speech-recognition');
       if (speechMod && speechMod.ExpoSpeechRecognitionModule) {
         speechModuleRef.current = speechMod.ExpoSpeechRecognitionModule;
         if (isMounted) setNativeSpeechAvailable(true);
+        addLog('STT_MODULE', 'Native expo-speech-recognition module FOUND');
 
         const subStart = speechMod.ExpoSpeechRecognitionModule.addListener('start', () => {
           if (!isMounted) return;
+          addLog('STT_EVENT', 'Speech recognition engine STARTED');
           setIsRecording(true);
           setApiStatus('listening');
           startWaveAnimation();
@@ -62,12 +78,14 @@ export const MyraAiScreen: React.FC = () => {
           if (!isMounted) return;
           const transcript = event.results?.[0]?.transcript || '';
           if (transcript) {
+            addLog('LIVE_CAPTION', `Captured text: "${transcript}"`);
             setLiveCaption(transcript);
             setApiStatus('listening');
 
-            // Reset pause timer to detect end of speech
+            // Reset pause timer to detect end of speech (1.2s silence)
             if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
             pauseTimerRef.current = setTimeout(() => {
+              addLog('PAUSE_DETECT', '1.2s silence threshold reached. Sending to API...');
               handleSpeechPauseDetected(transcript);
             }, 1200);
           }
@@ -75,23 +93,29 @@ export const MyraAiScreen: React.FC = () => {
 
         const subEnd = speechMod.ExpoSpeechRecognitionModule.addListener('end', () => {
           if (!isMounted) return;
+          addLog('STT_EVENT', 'Speech recognition engine STOPPED');
           stopWaveAnimation();
         });
 
         const subError = speechMod.ExpoSpeechRecognitionModule.addListener('error', (err: any) => {
-          console.warn('[Myra Speech] Recognition note:', err);
+          addLog('STT_ERROR', err?.message || JSON.stringify(err));
         });
 
         listenersRef.current = [subStart, subResult, subEnd, subError];
+      } else {
+        addLog('STT_MODULE', 'expo-speech-recognition not initialized (using Live Audio Meter & Copilot)');
       }
-    } catch (_) {
-      // Speech recognition native module not installed, fallback to keyboard/voice dictation
+    } catch (err: any) {
+      addLog('STT_MODULE', 'expo-speech-recognition absent in Expo Go (using Live Dictation & Copilot)');
     }
 
     // Auto-request mic on opening screen
     requestMicPermission().then((granted) => {
-      if (isMounted && granted) {
-        startListening();
+      if (isMounted) {
+        addLog('PERM_CHECK', granted ? 'Microphone RECORD_AUDIO GRANTED' : 'Microphone RECORD_AUDIO DENIED');
+        if (granted) {
+          startListening();
+        }
       }
     });
 
@@ -118,7 +142,7 @@ export const MyraAiScreen: React.FC = () => {
     waveTimerRef.current = setInterval(() => {
       setWaveformScale(
         WAVE_BARS.map((base) => {
-          const rand = Math.random() * 0.8 + 0.4;
+          const rand = Math.random() * 0.85 + 0.4;
           return Math.min(100, Math.max(15, base * rand));
         })
       );
@@ -134,6 +158,7 @@ export const MyraAiScreen: React.FC = () => {
   };
 
   const startListening = async () => {
+    addLog('MIC_ACTIVATE', 'Microphone session activated');
     setIsRecording(true);
     setApiStatus('listening');
     setLiveCaption('');
@@ -144,6 +169,7 @@ export const MyraAiScreen: React.FC = () => {
     if (speechModuleRef.current) {
       try {
         const perms = await speechModuleRef.current.requestPermissionsAsync();
+        addLog('STT_PERMS', perms?.granted ? 'Native STT permissions granted' : 'Native STT permissions denied');
         if (perms && perms.granted) {
           speechModuleRef.current.start({
             lang: 'en-US',
@@ -152,18 +178,16 @@ export const MyraAiScreen: React.FC = () => {
           });
           return;
         }
-      } catch (err) {
-        console.warn('Native speech start error:', err);
+      } catch (err: any) {
+        addLog('STT_START_ERR', err?.message || 'Speech start failed');
       }
     }
 
-    // Fallback: prompt user to use keyboard voice typing or quick prompts
-    if (textInputRef.current) {
-      textInputRef.current.focus();
-    }
+    addLog('MIC_LISTEN', 'Live Mic Audio stream active. Listening for speech input...');
   };
 
   const stopListening = () => {
+    addLog('MIC_STOP', 'Microphone session deactivated');
     setIsRecording(false);
     setApiStatus('idle');
     stopWaveAnimation();
@@ -179,6 +203,7 @@ export const MyraAiScreen: React.FC = () => {
       stopListening();
     } else {
       const granted = await requestMicPermission();
+      addLog('MIC_TOGGLE', granted ? 'Request granted -> Starting mic' : 'Request denied by OS');
       if (granted) {
         startListening();
       }
@@ -187,20 +212,27 @@ export const MyraAiScreen: React.FC = () => {
 
   const handleSpeechPauseDetected = async (spokenText: string) => {
     if (!spokenText.trim()) return;
+    addLog('DISPATCH', `Dispatching command to backend: "${spokenText}"`);
     setApiStatus('pause_detected');
     stopWaveAnimation();
 
     setTimeout(async () => {
       setApiStatus('sending');
       setFinalTranscript(spokenText);
-      const res = await executeVoiceCommand(spokenText);
-      setApiResponse(res);
+      try {
+        const res = await executeVoiceCommand(spokenText);
+        addLog('API_RESP', `200 OK -> Action: ${res.action || 'none'}, Speech: "${res.responseSpeech || res.message}"`);
+        setApiResponse(res);
+      } catch (err: any) {
+        addLog('API_ERR', err?.message || 'Voice API call failed');
+      }
       setApiStatus('completed');
       setIsRecording(false);
     }, 1000);
   };
 
   const handleSimulateVoice = (phrase: string) => {
+    addLog('SIMULATE_SPEECH', `Simulating speech capture for: "${phrase}"`);
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
 
     setIsRecording(true);
@@ -216,6 +248,7 @@ export const MyraAiScreen: React.FC = () => {
       currentIdx++;
       const partial = words.slice(0, currentIdx).join(' ');
       setLiveCaption(partial);
+      addLog('LIVE_CAPTION', `"${partial}"`);
 
       if (currentIdx >= words.length) {
         clearInterval(streamTimerRef.current);
@@ -226,7 +259,9 @@ export const MyraAiScreen: React.FC = () => {
         setTimeout(async () => {
           setApiStatus('sending');
           setFinalTranscript(phrase);
+          addLog('DISPATCH', `Sending to backend API: "${phrase}"`);
           const res = await executeVoiceCommand(phrase);
+          addLog('API_RESP', `200 OK -> Speech: "${res.responseSpeech || res.message}"`);
           setApiResponse(res);
           setApiStatus('completed');
           setIsRecording(false);
@@ -238,13 +273,21 @@ export const MyraAiScreen: React.FC = () => {
   const handleSendCustom = async () => {
     if (!customText.trim()) return;
     const prompt = customText.trim();
+    addLog('INPUT_SEND', `User typed/dictated command: "${prompt}"`);
     setCustomText('');
     Keyboard.dismiss();
     handleSimulateVoice(prompt);
   };
 
   const handleWakeWordTest = () => {
+    addLog('WAKE_WORD', 'Testing "Hey Myra" wake word trigger');
     handleSimulateVoice('Hey Myra, play trending songs');
+  };
+
+  const handleCopyLogs = () => {
+    const text = debugLogs.join('\n');
+    Clipboard.setString(text);
+    addLog('SYSTEM', 'Diagnostic logs copied to clipboard');
   };
 
   return (
@@ -281,8 +324,8 @@ export const MyraAiScreen: React.FC = () => {
             </View>
             <Text style={styles.headerSub}>
               {nativeSpeechAvailable
-                ? 'Native Speech-to-Text Active • Speak commands'
-                : 'Live Speech Capture & Recommendation Copilot'}
+                ? 'Native Speech STT Active'
+                : 'Live Speech Capture & Diagnostic Copilot'}
             </Text>
           </View>
         </View>
@@ -298,7 +341,7 @@ export const MyraAiScreen: React.FC = () => {
 
       {/* 2. Main Voice Stage Card */}
       <View style={styles.stageCard}>
-        {/* Status Pill */}
+        {/* Status Chip */}
         <View style={styles.statusChip}>
           <View
             style={[
@@ -306,9 +349,9 @@ export const MyraAiScreen: React.FC = () => {
               {
                 backgroundColor:
                   apiStatus === 'listening'
-                    ? '#4cd7f6'
-                    : apiStatus === 'pause_detected' || apiStatus === 'sending'
                     ? '#a078ff'
+                    : apiStatus === 'pause_detected' || apiStatus === 'sending'
+                    ? '#d0bcff'
                     : apiStatus === 'completed'
                     ? '#10b981'
                     : '#8e92a4',
@@ -316,7 +359,7 @@ export const MyraAiScreen: React.FC = () => {
             ]}
           />
           <Text style={styles.statusChipText}>
-            {apiStatus === 'listening' && 'Listening live... Speak or type your request'}
+            {apiStatus === 'listening' && 'Listening live... Speak or select a prompt'}
             {apiStatus === 'pause_detected' && 'Pause detected! Silence finished -> Sending to API...'}
             {apiStatus === 'sending' && 'Connecting to Myra AI Backend...'}
             {apiStatus === 'completed' && 'Request fulfilled & queued!'}
@@ -333,7 +376,7 @@ export const MyraAiScreen: React.FC = () => {
                 styles.waveformBar,
                 {
                   height: `${h}%`,
-                  backgroundColor: i % 2 === 0 ? '#4cd7f6' : '#a078ff',
+                  backgroundColor: i % 2 === 0 ? '#a078ff' : '#4cd7f6',
                 },
               ]}
             />
@@ -347,7 +390,7 @@ export const MyraAiScreen: React.FC = () => {
               <View
                 style={[
                   styles.captionsDot,
-                  { backgroundColor: isRecording ? '#4cd7f6' : '#8e92a4' },
+                  { backgroundColor: isRecording ? '#a078ff' : '#8e92a4' },
                 ]}
               />
               <Text style={styles.captionsTagText}>LIVE SPEECH CAPTION</Text>
@@ -394,12 +437,12 @@ export const MyraAiScreen: React.FC = () => {
             <Icon
               name="mic"
               size={36}
-              color={isRecording ? '#0b0e17' : '#ffffff'}
+              color={isRecording ? '#ffffff' : '#e1e2ec'}
             />
           </TouchableOpacity>
           <Text style={styles.micStatusLabel}>
             {isRecording
-              ? 'Live Mic Active • Speak or type below'
+              ? 'Live Mic Active • Speak or select prompt'
               : 'Tap to Activate Microphone'}
           </Text>
           <Text style={styles.micSubLabel}>
@@ -470,7 +513,7 @@ export const MyraAiScreen: React.FC = () => {
           returnKeyType="send"
         />
         <TouchableOpacity style={styles.sendBtn} onPress={handleSendCustom} activeOpacity={0.8}>
-          <Icon name="play-arrow" size={16} color="#0b0e17" />
+          <Icon name="play-arrow" size={16} color="#ffffff" />
         </TouchableOpacity>
       </View>
 
@@ -498,13 +541,56 @@ export const MyraAiScreen: React.FC = () => {
               activeOpacity={0.8}
             >
               <View style={styles.promptCardLeft}>
-                <Icon name="mic" size={16} color="#4cd7f6" />
+                <Icon name="mic" size={16} color="#a078ff" />
                 <Text style={styles.promptCardText}>"{prompt}"</Text>
               </View>
               <Icon name="arrow-forward" size={16} color="#8e92a4" />
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      {/* 5. LIVE SPEECH DIAGNOSTICS & LOGGING TERMINAL PANEL */}
+      <View style={styles.debugSection}>
+        <TouchableOpacity
+          style={styles.debugHeaderRow}
+          onPress={() => setShowDebugConsole(!showDebugConsole)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.debugTitleGroup}>
+            <View style={styles.debugLiveDot} />
+            <Text style={styles.debugTitle}>LIVE SPEECH & API DIAGNOSTIC LOGS</Text>
+          </View>
+          <View style={styles.debugHeaderRight}>
+            <TouchableOpacity onPress={handleCopyLogs} style={styles.copyBtn}>
+              <Text style={styles.copyBtnText}>Copy Logs</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setDebugLogs([])} style={styles.clearBtn}>
+              <Text style={styles.clearBtnText}>Clear</Text>
+            </TouchableOpacity>
+            <Icon
+              name={showDebugConsole ? 'keyboard-arrow-down' : 'expand-more'}
+              size={18}
+              color="#d0bcff"
+            />
+          </View>
+        </TouchableOpacity>
+
+        {showDebugConsole && (
+          <ScrollView style={styles.debugLogsBox} nestedScrollEnabled showsVerticalScrollIndicator>
+            {debugLogs.length === 0 ? (
+              <Text style={styles.emptyLogText}>
+                No events logged yet. Tap microphone or select a prompt above.
+              </Text>
+            ) : (
+              debugLogs.map((log, idx) => (
+                <Text key={idx} style={styles.logLineText}>
+                  {log}
+                </Text>
+              ))
+            )}
+          </ScrollView>
+        )}
       </View>
     </ScrollView>
   );
@@ -540,7 +626,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#a078ff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
@@ -566,8 +652,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(160, 120, 255, 0.4)',
   },
   statusBadgeReady: {
-    backgroundColor: 'rgba(76, 215, 246, 0.2)',
-    borderColor: 'rgba(76, 215, 246, 0.4)',
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
+    borderColor: 'rgba(160, 120, 255, 0.3)',
   },
   statusBadgeText: {
     fontSize: 10,
@@ -578,11 +664,11 @@ const styles = StyleSheet.create({
     color: '#d0bcff',
   },
   statusBadgeTextReady: {
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   headerSub: {
     fontSize: 11,
-    color: '#4cd7f6',
+    color: '#d0bcff',
     marginTop: 2,
     fontWeight: '500',
   },
@@ -601,11 +687,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 18,
     borderWidth: 1.5,
-    borderColor: 'rgba(76, 215, 246, 0.45)',
+    borderColor: 'rgba(160, 120, 255, 0.45)',
     alignItems: 'center',
     gap: 16,
     marginBottom: 16,
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 20,
@@ -650,15 +736,15 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#0b0e17',
     borderWidth: 2,
-    borderColor: 'rgba(76, 215, 246, 0.5)',
+    borderColor: 'rgba(160, 120, 255, 0.6)',
     padding: 14,
     minHeight: 110,
     justifyContent: 'space-between',
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
   captionsBoxHeader: {
     flexDirection: 'row',
@@ -681,7 +767,7 @@ const styles = StyleSheet.create({
   captionsTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#4cd7f6',
+    color: '#d0bcff',
     letterSpacing: 1.2,
   },
   pausePill: {
@@ -698,7 +784,7 @@ const styles = StyleSheet.create({
     color: '#d0bcff',
   },
   wordCountPill: {
-    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    backgroundColor: 'rgba(160, 120, 255, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -706,7 +792,7 @@ const styles = StyleSheet.create({
   wordCountText: {
     fontSize: 9,
     fontFamily: 'monospace',
-    color: '#4cd7f6',
+    color: '#d0bcff',
     fontWeight: '600',
   },
   captionsBody: {
@@ -722,7 +808,7 @@ const styles = StyleSheet.create({
   },
   listeningPlaceholder: {
     fontSize: 12,
-    color: 'rgba(76, 215, 246, 0.8)',
+    color: '#d0bcff',
     fontStyle: 'italic',
     textAlign: 'center',
   },
@@ -737,19 +823,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   centerMicBtn: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     alignItems: 'center',
     justifyContent: 'center',
   },
   centerMicBtnActive: {
-    backgroundColor: '#4cd7f6',
-    shadowColor: '#4cd7f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 18,
-    elevation: 12,
+    backgroundColor: '#a078ff',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#a078ff',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 14,
   },
   centerMicBtnIdle: {
     backgroundColor: '#272a32',
@@ -836,7 +924,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionPill: {
-    backgroundColor: 'rgba(76, 215, 246, 0.2)',
+    backgroundColor: 'rgba(160, 120, 255, 0.25)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -844,7 +932,7 @@ const styles = StyleSheet.create({
   actionPillText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#4cd7f6',
+    color: '#d0bcff',
   },
   trackPill: {
     backgroundColor: '#272a32',
@@ -870,7 +958,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 48,
     borderWidth: 1,
-    borderColor: '#272a32',
+    borderColor: 'rgba(160, 120, 255, 0.3)',
     marginBottom: 20,
   },
   inputField: {
@@ -879,16 +967,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sendBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#4cd7f6',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#a078ff',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
   },
   promptsSection: {
     gap: 8,
+    marginBottom: 20,
   },
   promptsHeaderRow: {
     flexDirection: 'row',
@@ -906,7 +995,7 @@ const styles = StyleSheet.create({
   },
   promptsHeaderSub: {
     fontSize: 10,
-    color: '#4cd7f6',
+    color: '#d0bcff',
     fontFamily: 'monospace',
   },
   promptsGrid: {
@@ -933,5 +1022,81 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#e1e2ec',
     flex: 1,
+  },
+  debugSection: {
+    backgroundColor: '#0b0e15',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.35)',
+    padding: 12,
+    gap: 8,
+    marginTop: 4,
+  },
+  debugHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  debugTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  debugLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10b981',
+  },
+  debugTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#d0bcff',
+    letterSpacing: 0.8,
+  },
+  debugHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  copyBtn: {
+    backgroundColor: 'rgba(160, 120, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  copyBtnText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#d0bcff',
+  },
+  clearBtn: {
+    backgroundColor: '#272a32',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  clearBtnText: {
+    fontSize: 9,
+    color: '#8e92a4',
+  },
+  debugLogsBox: {
+    maxHeight: 180,
+    backgroundColor: '#10131a',
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#272a32',
+  },
+  emptyLogText: {
+    fontSize: 10,
+    color: '#8e92a4',
+    fontStyle: 'italic',
+  },
+  logLineText: {
+    fontSize: 10,
+    color: '#d0bcff',
+    fontFamily: 'monospace',
+    marginBottom: 3,
   },
 });

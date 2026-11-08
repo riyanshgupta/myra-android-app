@@ -32,12 +32,14 @@ export async function initNotificationService() {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('myra-playback-channel', {
         name: 'Myra Media Playback',
-        importance: Notifications.AndroidImportance.LOW,
+        importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0],
-        enableLights: false,
+        enableLights: true,
+        lightColor: '#a078ff',
         enableVibrate: false,
-        showBadge: false,
+        showBadge: true,
         sound: null,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     }
     isConfigured = true;
@@ -89,16 +91,16 @@ export async function updatePlaybackNotification(track: Track | null, isPlaying:
     await Notifications.scheduleNotificationAsync({
       content: {
         title: track.title,
-        body: `${track.artist} • ${isPlaying ? 'Now Playing' : 'Paused'}`,
+        body: `${track.artist} • ${isPlaying ? '▶ Now Playing' : '⏸ Paused'}`,
         data: { trackId: track.id },
-        color: '#4cd7f6',
-        priority: Notifications.AndroidNotificationPriority.LOW,
+        color: '#a078ff',
+        priority: Notifications.AndroidNotificationPriority.HIGH,
         // Android specific parameters
         ...(Platform.OS === 'android'
           ? {
               channelId: 'myra-playback-channel',
               autoDismiss: false,
-              sticky: isPlaying,
+              sticky: true,
             }
           : {}),
       },
