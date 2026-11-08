@@ -4,9 +4,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   TextInput,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
@@ -33,8 +33,9 @@ export const MyraAiScreen: React.FC = () => {
 
   const waveTimerRef = useRef<any>(null);
   const streamTimerRef = useRef<any>(null);
+  const textInputRef = useRef<TextInput | null>(null);
 
-  // Auto-request mic on opening screen and start listening if granted
+  // Check microphone permission on screen mount
   useEffect(() => {
     let isMounted = true;
     requestMicPermission().then((granted) => {
@@ -92,6 +93,10 @@ export const MyraAiScreen: React.FC = () => {
       const granted = await requestMicPermission();
       if (granted) {
         startListening();
+        // Focus input so user can dictate or type immediately
+        if (textInputRef.current) {
+          textInputRef.current.focus();
+        }
       }
     }
   };
@@ -128,14 +133,19 @@ export const MyraAiScreen: React.FC = () => {
           setIsRecording(false);
         }, 1200);
       }
-    }, 250);
+    }, 220);
   };
 
   const handleSendCustom = async () => {
     if (!customText.trim()) return;
     const prompt = customText.trim();
     setCustomText('');
+    Keyboard.dismiss();
     handleSimulateVoice(prompt);
+  };
+
+  const handleWakeWordTest = () => {
+    handleSimulateVoice('Hey Myra, play trending songs');
   };
 
   return (
@@ -143,6 +153,7 @@ export const MyraAiScreen: React.FC = () => {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       {/* 1. Top Header */}
       <View style={styles.topHeader}>
@@ -170,7 +181,7 @@ export const MyraAiScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.headerSub}>
-              Real-time speech transcription & auto-pause API dispatch
+              Speech-to-Music Copilot & Recommendation Engine
             </Text>
           </View>
         </View>
@@ -184,7 +195,7 @@ export const MyraAiScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 2. Main Voice Processing Stage Card */}
+      {/* 2. Main Voice Stage Card */}
       <View style={styles.stageCard}>
         {/* Status Pill */}
         <View style={styles.statusChip}>
@@ -204,11 +215,11 @@ export const MyraAiScreen: React.FC = () => {
             ]}
           />
           <Text style={styles.statusChipText}>
-            {apiStatus === 'listening' && 'Listening live... Speak now'}
+            {apiStatus === 'listening' && 'Listening live... Speak or type your request'}
             {apiStatus === 'pause_detected' && 'Pause detected! Silence finished -> Sending to API...'}
-            {apiStatus === 'sending' && 'Packaging audio payload & sending to backend API...'}
-            {apiStatus === 'completed' && 'API response received successfully!'}
-            {apiStatus === 'idle' && 'Tap microphone below to start speaking'}
+            {apiStatus === 'sending' && 'Connecting to Myra AI Backend...'}
+            {apiStatus === 'completed' && 'Request fulfilled & queued!'}
+            {apiStatus === 'idle' && 'Tap microphone below or say "Hey Myra"'}
           </Text>
         </View>
 
@@ -259,11 +270,11 @@ export const MyraAiScreen: React.FC = () => {
               <Text style={styles.liveCaptionText}>"{liveCaption}"</Text>
             ) : isRecording ? (
               <Text style={styles.listeningPlaceholder}>
-                Listening live... speak now (e.g., "Play synthwave for highway cruising" or "Pause")
+                Listening live... speak now or tap any voice command below
               </Text>
             ) : (
               <Text style={styles.idlePlaceholder}>
-                Tap the microphone button below to start live transcription
+                Tap the microphone button below to activate live voice listening
               </Text>
             )}
           </View>
@@ -287,13 +298,23 @@ export const MyraAiScreen: React.FC = () => {
           </TouchableOpacity>
           <Text style={styles.micStatusLabel}>
             {isRecording
-              ? 'Live Mic Active • Speak and take a pause to trigger API'
-              : 'Tap to Allow & Start Live Microphone'}
+              ? 'Live Mic Active • Speak or type below'
+              : 'Tap to Activate Microphone'}
           </Text>
           <Text style={styles.micSubLabel}>
-            Speech is transcribed in real-time above and sent to API on pause
+            Say "Hey Myra" or select a prompt to stream live audio commands
           </Text>
         </View>
+
+        {/* Quick Wake-up Trigger */}
+        <TouchableOpacity
+          style={styles.wakePill}
+          onPress={handleWakeWordTest}
+          activeOpacity={0.7}
+        >
+          <Icon name="bolt" size={14} color="#a078ff" />
+          <Text style={styles.wakePillText}>Test "Hey Myra" Wake Word</Text>
+        </TouchableOpacity>
 
         {/* API Response Display Card */}
         {apiResponse && (
@@ -302,7 +323,7 @@ export const MyraAiScreen: React.FC = () => {
               <View style={styles.apiResponseTitleRow}>
                 <View style={styles.apiResponseDot} />
                 <Text style={styles.apiResponseTitle}>
-                  Backend API Result (Payload Dispatched)
+                  Backend Result • Queue Updated
                 </Text>
               </View>
               <Text style={styles.statusOkText}>Status 200 OK</Text>
@@ -335,36 +356,38 @@ export const MyraAiScreen: React.FC = () => {
         )}
       </View>
 
-      {/* 3. Text Command Input Bar */}
+      {/* 3. Text & Voice Dictation Input Bar */}
       <View style={styles.inputBar}>
         <TextInput
+          ref={textInputRef}
           style={styles.inputField}
-          placeholder="Type a voice command (e.g. Play Tum Hi Ho)..."
+          placeholder="Speak or type (e.g. Play synthwave or Pause)..."
           placeholderTextColor="#8e92a4"
           value={customText}
           onChangeText={setCustomText}
           onSubmitEditing={handleSendCustom}
+          returnKeyType="send"
         />
         <TouchableOpacity style={styles.sendBtn} onPress={handleSendCustom} activeOpacity={0.8}>
           <Icon name="play-arrow" size={16} color="#0b0e17" />
         </TouchableOpacity>
       </View>
 
-      {/* 4. Quick Driving Voice Prompts */}
+      {/* 4. Quick Voice Prompts */}
       <View style={styles.promptsSection}>
         <View style={styles.promptsHeaderRow}>
           <Text style={styles.promptsHeaderTitle}>
-            Quick Voice Prompts (One-Click Voice & Auto-Pause Simulation)
+            Quick Voice Prompts (Live Voice & Recommendations)
           </Text>
-          <Text style={styles.promptsHeaderSub}>Simulates Live Mic + Auto-Pause</Text>
+          <Text style={styles.promptsHeaderSub}>Auto-Pause & Play</Text>
         </View>
 
         <View style={styles.promptsGrid}>
           {[
             'Play synthwave for highway cruising',
             'Match BPM to night pulse',
-            'Queue chill ambient soundscapes',
-            'Pause the current playback',
+            'Queue chill ambient vocalists',
+            'Pause current playback',
             'Skip to the next track in queue',
           ].map((prompt) => (
             <TouchableOpacity
@@ -642,6 +665,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#8e92a4',
     textAlign: 'center',
+  },
+  wakePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.35)',
+  },
+  wakePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#d0bcff',
   },
   apiResponseCard: {
     width: '100%',

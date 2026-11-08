@@ -8,6 +8,13 @@ import { ApiResponse } from '../types/music';
  * Checks if already granted first to avoid prompting every time.
  */
 export async function requestMicrophonePermission(): Promise<boolean> {
+  try {
+    const cached = await AsyncStorage.getItem('myra_mic_granted');
+    if (cached === 'true') {
+      return true;
+    }
+  } catch (_) {}
+
   if (Platform.OS === 'android') {
     try {
       const alreadyGranted = await PermissionsAndroid.check(
@@ -56,26 +63,34 @@ export async function requestMicrophonePermission(): Promise<boolean> {
 }
 
 export async function checkMicrophonePermission(): Promise<boolean> {
+  const cached = await AsyncStorage.getItem('myra_mic_granted');
+  if (cached === 'true') return true;
+
   if (Platform.OS === 'android') {
     try {
       const has = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-      if (has) return true;
+      if (has) {
+        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
+        return true;
+      }
     } catch (_) {}
   }
-  const cached = await AsyncStorage.getItem('myra_mic_granted');
-  return cached === 'true';
+  return false;
 }
 
 /**
  * Dispatch Voice Command to Myra AI Backend
  */
-export async function processVoiceCommand(commandText: string): Promise<ApiResponse> {
+export async function processVoiceCommand(
+  commandText: string,
+  metaData?: { current_track_id?: string | null; is_playing?: boolean; position_seconds?: number }
+): Promise<ApiResponse & { song?: any }> {
   if (!commandText.trim()) {
     return { success: false, message: 'Please speak or enter a music request.' };
   }
 
   try {
-    const response = await sendVoiceAssistantApi(commandText.trim());
+    const response = await sendVoiceAssistantApi(commandText.trim(), metaData);
     return response;
   } catch (err: any) {
     return {

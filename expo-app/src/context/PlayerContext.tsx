@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track, Playlist, UserResp, ApiResponse } from '../types/music';
 import {
   initApiStorage,
   getTrendingApi,
+  getRecommendedApi,
   getTrackStreamApi,
   getCurrentUser,
   logoutApi,
@@ -25,8 +27,10 @@ interface PlayerContextType {
   duration: number;
   trendingTracks: Track[];
   queue: Track[];
+  recentlyPlayed: Track[];
   playlists: Playlist[];
   isLoadingTrending: boolean;
+  isLoadingMoreQueue: boolean;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   currentUser: UserResp | null;
@@ -39,13 +43,14 @@ interface PlayerContextType {
   setActiveMood: (mood: string) => void;
   likedTracks: Record<string, boolean>;
   toggleLike: (track: Track) => Promise<void>;
-  playTrack: (track: Track) => Promise<void>;
+  playTrack: (track: Track, options?: { explicitQueue?: Track[]; keepCurrentQueue?: boolean }) => Promise<void>;
   togglePlay: () => Promise<void>;
   pauseTrack: () => Promise<void>;
   nextTrack: () => Promise<void>;
   prevTrack: () => Promise<void>;
   seekTo: (seconds: number) => Promise<void>;
   refreshTrending: () => Promise<void>;
+  loadMoreQueue: () => Promise<void>;
   // Microphone & Hey Myra Assistant
   isMicGranted: boolean;
   requestMicPermission: () => Promise<boolean>;
@@ -63,8 +68,10 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [duration, setDuration] = useState<number>(180);
   const [trendingTracks, setTrendingTracks] = useState<Track[]>([]);
   const [queue, setQueue] = useState<Track[]>([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isLoadingTrending, setIsLoadingTrending] = useState<boolean>(true);
+  const [isLoadingMoreQueue, setIsLoadingMoreQueue] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserResp | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
@@ -74,9 +81,28 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isMicGranted, setIsMicGranted] = useState<boolean>(false);
   const [voiceToast, setVoiceToast] = useState<string | null>(null);
 
+  // Mutable refs to prevent stale closure bugs in event listeners
   const playerRef = useRef<any>(null);
   const subscriptionRef = useRef<any>(null);
   const toastTimeoutRef = useRef<any>(null);
+  const queueRef = useRef<Track[]>([]);
+  const currentTrackRef = useRef<Track | null>(null);
+  const isPlayingRef = useRef<boolean>(false);
+  const isAdvancingRef = useRef<boolean>(false);
+  const queueOffsetRef = useRef<number>(20);
+
+  // Sync mutable refs
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // Initialize storage, auth check, audio mode, mic check, and initial songs
   useEffect(() => {
@@ -88,21 +114,37 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } catch (_) {}
       setIsAuthChecking(false);
 
+      // Load recently played from AsyncStorage
+      try {
+        const savedRecent = await AsyncStorage.getItem('myra_recently_played');
+        if (savedRecent) {
+          const parsed = JSON.parse(savedRecent);
+          if (Array.isArray(parsed)) {
+            setRecentlyPlayed(parsed);
+          }
+        }
+      } catch (_) {}
+
       // Check microphone permission state on launch
       try {
         const hasMic = await checkMicrophonePermission();
         setIsMicGranted(hasMic);
       } catch (_) {}
 
+      // Configure background audio mode for Android lock screen & notification controls
       try {
         await setAudioModeAsync({
           playsInSilentMode: true,
           shouldPlayInBackground: true,
+          staysActiveInBackground: true,
+          interruptionMode: 'doNotMix',
+          playThroughEarpieceAndroid: false,
         });
       } catch (_) {}
 
       // Load initial trending catalog
       await refreshTrending();
+
       // Load user favorites if logged in
       if (getCurrentUser()) {
         loadUserFavorites();
@@ -147,13 +189,25 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const executeVoiceCommand = async (command: string): Promise<ApiResponse> => {
     showVoiceToast(`"Hey Myra": ${command}`);
     try {
-      const res = await processVoiceCommand(command);
+      const res = await processVoiceCommand(command, {
+        current_track_id: currentTrackRef.current?.id || null,
+        is_playing: isPlayingRef.current,
+        position_seconds: currentTime,
+      });
+
       const speech = res.responseSpeech || res.message || 'Executing your request.';
       showVoiceToast(`Myra: ${speech}`);
 
       const lower = command.toLowerCase().trim();
+
+      // If backend returned a mapped song object
+      if ((res as any).song) {
+        await playTrack((res as any).song);
+        return res;
+      }
+
       if (res.action === 'play_track' && res.suggestedTrackId) {
-        const match = queue.find((t) => t.id === res.suggestedTrackId);
+        const match = queueRef.current.find((t) => t.id === res.suggestedTrackId);
         if (match) {
           await playTrack(match);
         } else {
@@ -189,17 +243,44 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const refreshTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      const trending = await getTrendingApi();
+      const trending = await getTrendingApi(0, 20);
       if (trending && trending.length > 0) {
         setTrendingTracks(trending);
         setQueue(trending);
-        if (!currentTrack) {
+        queueRef.current = trending;
+        queueOffsetRef.current = 20;
+        if (!currentTrackRef.current) {
           setCurrentTrack(trending[0]);
           setDuration(trending[0].duration || 180);
         }
       }
     } catch (_) {}
     setIsLoadingTrending(false);
+  };
+
+  const loadMoreQueue = async () => {
+    if (isLoadingMoreQueue) return;
+    setIsLoadingMoreQueue(true);
+    try {
+      const offset = queueOffsetRef.current;
+      const moreTracks = await getTrendingApi(offset, 20);
+      if (moreTracks && moreTracks.length > 0) {
+        queueOffsetRef.current = offset + moreTracks.length;
+        setQueue((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const filtered = moreTracks.filter((t) => !existingIds.has(t.id));
+          const updated = [...prev, ...filtered];
+          queueRef.current = updated;
+          return updated;
+        });
+        setTrendingTracks((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const filtered = moreTracks.filter((t) => !existingIds.has(t.id));
+          return [...prev, ...filtered];
+        });
+      }
+    } catch (_) {}
+    setIsLoadingMoreQueue(false);
   };
 
   const loadUserFavorites = async () => {
@@ -241,12 +322,68 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setLikedTracks({});
   };
 
-  const playTrack = async (track: Track) => {
+  // Safe track transition handler that avoids stale closures
+  const advanceNextTrack = async () => {
+    const currentQ = queueRef.current;
+    const current = currentTrackRef.current;
+    if (!currentQ || currentQ.length === 0) return;
+
+    const curIdx = current ? currentQ.findIndex((t) => t.id === current.id) : -1;
+    const nextIdx = (curIdx + 1) % currentQ.length;
+    const nextSong = currentQ[nextIdx];
+
+    if (nextSong) {
+      await playTrack(nextSong, { keepCurrentQueue: true });
+    }
+  };
+
+  const playTrack = async (
+    track: Track,
+    options?: { explicitQueue?: Track[]; keepCurrentQueue?: boolean }
+  ) => {
+    if (!track) return;
+
     setCurrentTrack(track);
+    currentTrackRef.current = track;
     setDuration(track.duration || 180);
     setCurrentTime(0);
 
-    // Clean up previous player
+    // 1. Add to Recently Played and persist to AsyncStorage
+    setRecentlyPlayed((prev) => {
+      const filtered = prev.filter((t) => t.id !== track.id);
+      const updated = [track, ...filtered].slice(0, 20);
+      AsyncStorage.setItem('myra_recently_played', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+
+    // 2. Queue handling & dynamic recommendations
+    if (options?.explicitQueue && options.explicitQueue.length > 0) {
+      setQueue(options.explicitQueue);
+      queueRef.current = options.explicitQueue;
+    } else if (!options?.keepCurrentQueue) {
+      // User picked a new song from search or voice prompt:
+      // Fetch recommendations and dynamically populate queue with related songs!
+      getRecommendedApi(track.id, 20)
+        .then((recs) => {
+          if (recs && recs.length > 0) {
+            const uniqueRecs = recs.filter((r) => r.id !== track.id);
+            const newQ = [track, ...uniqueRecs];
+            setQueue(newQ);
+            queueRef.current = newQ;
+          } else {
+            // Keep current queue if no recommendations returned
+            const exists = queueRef.current.some((t) => t.id === track.id);
+            if (!exists) {
+              const newQ = [track, ...queueRef.current];
+              setQueue(newQ);
+              queueRef.current = newQ;
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 3. Clean up previous player & subscriptions
     if (subscriptionRef.current) {
       try {
         subscriptionRef.current.remove();
@@ -269,10 +406,22 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     if (!playbackUrl) {
       setIsPlaying(false);
+      isPlayingRef.current = false;
       return;
     }
 
     try {
+      // Re-assert background audio mode for Android lock screen & notification controls
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
+          staysActiveInBackground: true,
+          interruptionMode: 'doNotMix',
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (_) {}
+
       const player = createAudioPlayer({
         uri: playbackUrl,
         headers: {
@@ -288,12 +437,27 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (status) {
             if (typeof status.isPlaying === 'boolean') {
               setIsPlaying(status.isPlaying);
+              isPlayingRef.current = status.isPlaying;
             }
             if (typeof status.currentTime === 'number') {
               setCurrentTime(Math.floor(status.currentTime));
             }
-            if (status.didJustFinish) {
-              nextTrack();
+
+            // Reliable song completion check across expo-audio status variations
+            const isFinished =
+              status.didJustFinish === true ||
+              status.playbackState === 'ended' ||
+              (typeof status.duration === 'number' &&
+                status.duration > 5 &&
+                typeof status.currentTime === 'number' &&
+                status.currentTime >= status.duration - 0.75);
+
+            if (isFinished && !isAdvancingRef.current) {
+              isAdvancingRef.current = true;
+              advanceNextTrack();
+              setTimeout(() => {
+                isAdvancingRef.current = false;
+              }, 2000);
             }
           }
         });
@@ -301,24 +465,28 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       await player.play();
       setIsPlaying(true);
+      isPlayingRef.current = true;
     } catch (err) {
       console.warn('Expo Audio Playback Error:', err);
       setIsPlaying(false);
+      isPlayingRef.current = false;
     }
   };
 
   const togglePlay = async () => {
     if (!playerRef.current) {
-      if (currentTrack) await playTrack(currentTrack);
+      if (currentTrackRef.current) await playTrack(currentTrackRef.current);
       return;
     }
     try {
-      if (isPlaying) {
+      if (isPlayingRef.current) {
         await playerRef.current.pause();
         setIsPlaying(false);
+        isPlayingRef.current = false;
       } else {
         await playerRef.current.play();
         setIsPlaying(true);
+        isPlayingRef.current = true;
       }
     } catch (_) {}
   };
@@ -329,21 +497,24 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         await playerRef.current.pause();
       } catch (_) {}
       setIsPlaying(false);
+      isPlayingRef.current = false;
     }
   };
 
   const nextTrack = async () => {
-    if (queue.length === 0) return;
-    const curIdx = currentTrack ? queue.findIndex((t) => t.id === currentTrack.id) : -1;
-    const nextIdx = (curIdx + 1) % queue.length;
-    await playTrack(queue[nextIdx] || queue[0]);
+    const currentQ = queueRef.current;
+    if (currentQ.length === 0) return;
+    const curIdx = currentTrackRef.current ? currentQ.findIndex((t) => t.id === currentTrackRef.current?.id) : -1;
+    const nextIdx = (curIdx + 1) % currentQ.length;
+    await playTrack(currentQ[nextIdx] || currentQ[0], { keepCurrentQueue: true });
   };
 
   const prevTrack = async () => {
-    if (queue.length === 0) return;
-    const curIdx = currentTrack ? queue.findIndex((t) => t.id === currentTrack.id) : 0;
-    const prevIdx = (curIdx - 1 + queue.length) % queue.length;
-    await playTrack(queue[prevIdx] || queue[0]);
+    const currentQ = queueRef.current;
+    if (currentQ.length === 0) return;
+    const curIdx = currentTrackRef.current ? currentQ.findIndex((t) => t.id === currentTrackRef.current?.id) : 0;
+    const prevIdx = (curIdx - 1 + currentQ.length) % currentQ.length;
+    await playTrack(currentQ[prevIdx] || currentQ[0], { keepCurrentQueue: true });
   };
 
   const seekTo = async (seconds: number) => {
@@ -364,8 +535,10 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         duration,
         trendingTracks,
         queue,
+        recentlyPlayed,
         playlists,
         isLoadingTrending,
+        isLoadingMoreQueue,
         isAuthModalOpen,
         setIsAuthModalOpen,
         currentUser,
@@ -385,6 +558,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         prevTrack,
         seekTo,
         refreshTrending,
+        loadMoreQueue,
         isMicGranted,
         requestMicPermission: requestMic,
         executeVoiceCommand,

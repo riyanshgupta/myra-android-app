@@ -1,107 +1,154 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
 import { Track } from '../types/music';
 
 export const PlaylistsScreen: React.FC = () => {
-  const { queue, playTrack, currentTrack, isPlaying, trendingTracks, likedTracks } = usePlayer();
+  const {
+    queue,
+    playTrack,
+    currentTrack,
+    isPlaying,
+    trendingTracks,
+    likedTracks,
+    loadMoreQueue,
+    isLoadingMoreQueue,
+  } = usePlayer();
+
+  const [activeTab, setActiveTab] = useState<'queue' | 'favorites'>('queue');
 
   const favoriteTracks = trendingTracks.filter((t) => likedTracks[t.id]);
 
+  const renderQueueItem = ({ item, index }: { item: Track; index: number }) => {
+    const isThisPlaying = currentTrack?.id === item.id && isPlaying;
+    return (
+      <TouchableOpacity
+        style={[styles.card, isThisPlaying && styles.cardActive]}
+        onPress={() => playTrack(item, { keepCurrentQueue: true })}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.index, isThisPlaying && styles.indexActive]}>
+          {(index + 1).toString().padStart(2, '0')}
+        </Text>
+        <Image source={{ uri: item.coverUrl }} style={styles.cover} />
+        <View style={styles.info}>
+          <Text
+            style={[styles.trackTitle, isThisPlaying && styles.trackTitleActive]}
+            numberOfLines={1}
+          >
+            {item.title}
+          </Text>
+          <Text style={styles.trackArtist} numberOfLines={1}>
+            {item.artist} • {item.durationFormatted}
+          </Text>
+        </View>
+        <View style={[styles.playIcon, isThisPlaying && styles.playIconActive]}>
+          <Icon
+            name={isThisPlaying ? 'pause' : 'play-arrow'}
+            size={14}
+            color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!isLoadingMoreQueue) return <View style={styles.listFooterPadding} />;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#4cd7f6" />
+        <Text style={styles.footerLoaderText}>Loading next page of tracks...</Text>
+      </View>
+    );
+  };
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Your Library</Text>
-        <Text style={styles.subtitle}>Saved Tracks & Playback Queue</Text>
-      </View>
+        <Text style={styles.subtitle}>Saved Tracks & Dynamic Playback Queue</Text>
 
-      {/* Liked Favorites Shelf if any */}
-      {favoriteTracks.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="favorite" size={16} color="#4cd7f6" />
-            <Text style={styles.sectionTitle}>
+        {/* Tab Toggle */}
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'queue' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('queue')}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name="queue-music"
+              size={14}
+              color={activeTab === 'queue' ? '#ffffff' : '#cbc3d7'}
+            />
+            <Text
+              style={[styles.tabBtnText, activeTab === 'queue' && styles.tabBtnTextActive]}
+            >
+              Up Next ({queue.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'favorites' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('favorites')}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name="favorite"
+              size={14}
+              color={activeTab === 'favorites' ? '#ffffff' : '#cbc3d7'}
+            />
+            <Text
+              style={[styles.tabBtnText, activeTab === 'favorites' && styles.tabBtnTextActive]}
+            >
               Favorites ({favoriteTracks.length})
             </Text>
-          </View>
-          {favoriteTracks.map((track) => (
-            <TouchableOpacity
-              key={`fav-${track.id}`}
-              style={styles.card}
-              onPress={() => playTrack(track)}
-              activeOpacity={0.8}
-            >
-              <Image source={{ uri: track.coverUrl }} style={styles.cover} />
-              <View style={styles.info}>
-                <Text style={styles.trackTitle} numberOfLines={1}>
-                  {track.title}
-                </Text>
-                <Text style={styles.trackArtist} numberOfLines={1}>
-                  {track.artist} • {track.durationFormatted}
-                </Text>
-              </View>
-              <View style={styles.playIcon}>
-                <Icon name="play-arrow" size={14} color="#4cd7f6" />
-              </View>
-            </TouchableOpacity>
-          ))}
+          </TouchableOpacity>
         </View>
-      )}
-
-      {/* Playback Queue Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleRow}>
-          <Icon name="queue-music" size={16} color="#4cd7f6" />
-          <Text style={styles.sectionTitle}>Up Next in Queue ({queue.length})</Text>
-        </View>
-
-        {queue.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Queue is empty. Select a song to begin.</Text>
-          </View>
-        ) : (
-          queue.map((track: Track, i: number) => {
-            const isThisPlaying = currentTrack?.id === track.id && isPlaying;
-            return (
-              <TouchableOpacity
-                key={`${track.id}-${i}`}
-                style={[styles.card, isThisPlaying && styles.cardActive]}
-                onPress={() => playTrack(track)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.index, isThisPlaying && styles.indexActive]}>
-                  {(i + 1).toString().padStart(2, '0')}
-                </Text>
-                <Image source={{ uri: track.coverUrl }} style={styles.cover} />
-                <View style={styles.info}>
-                  <Text
-                    style={[styles.trackTitle, isThisPlaying && styles.trackTitleActive]}
-                    numberOfLines={1}
-                  >
-                    {track.title}
-                  </Text>
-                  <Text style={styles.trackArtist} numberOfLines={1}>
-                    {track.artist} • {track.durationFormatted}
-                  </Text>
-                </View>
-                <View style={[styles.playIcon, isThisPlaying && styles.playIconActive]}>
-                  <Icon
-                    name={isThisPlaying ? 'pause' : 'play-arrow'}
-                    size={14}
-                    color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
-                  />
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
       </View>
-    </ScrollView>
+
+      {/* Main List */}
+      {activeTab === 'queue' ? (
+        <FlatList
+          data={queue}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          renderItem={renderQueueItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onEndReached={loadMoreQueue}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Queue is empty. Select a song to begin.</Text>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          data={favoriteTracks}
+          keyExtractor={(item) => `fav-${item.id}`}
+          renderItem={renderQueueItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>No favorite tracks saved yet.</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
   );
 };
 
@@ -110,12 +157,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#10131a',
   },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
   header: {
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
   title: {
     fontSize: 22,
@@ -126,20 +171,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#cbc3d7',
     marginTop: 2,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 14,
+  tabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#1d1f27',
+    padding: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#272a32',
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  tabBtnActive: {
+    backgroundColor: '#a078ff',
+  },
+  tabBtnText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#e1e2ec',
+    color: '#cbc3d7',
+  },
+  tabBtnTextActive: {
+    color: '#ffffff',
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 36,
   },
   card: {
     flexDirection: 'row',
@@ -158,10 +223,10 @@ const styles = StyleSheet.create({
   index: {
     color: '#cbc3d7',
     fontSize: 11,
-    fontFamily: 'monospace',
-    fontWeight: 'bold',
+    fontWeight: '700',
     width: 24,
     textAlign: 'center',
+    marginRight: 6,
   },
   indexActive: {
     color: '#4cd7f6',
@@ -171,24 +236,22 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 8,
     backgroundColor: '#272a32',
-    marginLeft: 4,
   },
   info: {
     flex: 1,
     marginLeft: 12,
-    marginRight: 8,
   },
   trackTitle: {
-    color: '#e1e2ec',
     fontSize: 13,
     fontWeight: '700',
+    color: '#e1e2ec',
   },
   trackTitleActive: {
     color: '#4cd7f6',
   },
   trackArtist: {
-    color: '#cbc3d7',
     fontSize: 11,
+    color: '#cbc3d7',
     marginTop: 2,
   },
   playIcon: {
@@ -203,13 +266,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#4cd7f6',
   },
   emptyBox: {
-    padding: 24,
-    backgroundColor: '#1d1f27',
-    borderRadius: 12,
+    padding: 30,
     alignItems: 'center',
+    backgroundColor: '#1d1f27',
+    borderRadius: 16,
+    marginTop: 16,
   },
   emptyText: {
-    color: '#cbc3d7',
     fontSize: 12,
+    color: '#cbc3d7',
+  },
+  footerLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 18,
+  },
+  footerLoaderText: {
+    fontSize: 11,
+    color: '#4cd7f6',
+    fontWeight: '600',
+  },
+  listFooterPadding: {
+    height: 20,
   },
 });

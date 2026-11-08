@@ -334,19 +334,58 @@ export async function getPlaylistsApi(): Promise<Playlist[]> {
   }
 }
 
+export async function getRecommendedApi(track_id: string, limit: number = 20): Promise<Track[]> {
+  try {
+    const raw = await request<any>(
+      `/music/recommended?track_id=${encodeURIComponent(track_id)}&limit=${limit}`,
+      { method: 'GET' }
+    );
+    const songs = raw.items || raw.songs || [];
+    return songs.map(mapSongToTrack);
+  } catch (_) {
+    return [];
+  }
+}
+
 // Voice Assistant
-export async function sendVoiceAssistantApi(message: string): Promise<ApiResponse> {
+export async function sendVoiceAssistantApi(
+  message: string,
+  metaData?: { current_track_id?: string | null; is_playing?: boolean; position_seconds?: number }
+): Promise<ApiResponse & { song?: Track }> {
   try {
     const res = await request<any>('/assistant/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, metaData }),
     });
+
+    let action: string | undefined = res.action;
+    let suggestedTrackId: string | undefined = res.suggestedTrackId;
+    let songObj: Track | undefined;
+
+    if (res.message_type === 'song' && res.metadata) {
+      const songMeta = res.metadata as any;
+      if (songMeta.jiosaavn_id) {
+        suggestedTrackId = songMeta.jiosaavn_id;
+        songObj = mapSongToTrack(songMeta);
+        action = 'play_track';
+      }
+    } else if (res.message_type === 'function_call' && res.metadata) {
+      const fnName = res.metadata.function_name || res.metadata.name;
+      if (fnName === 'pause') action = 'pause';
+      else if (fnName === 'next') action = 'next';
+      else if (fnName === 'previous') action = 'prev';
+      else if (fnName === 'resume' || fnName === 'play') action = 'play';
+    }
+
+    const speech = res.message || res.content || 'Voice command processed.';
+
     return {
       success: true,
-      message: res.content || 'Voice command processed.',
-      responseSpeech: res.content || 'Executing request.',
-      action: res.action,
-      suggestedTrackId: res.suggestedTrackId,
+      message: speech,
+      responseSpeech: speech,
+      action,
+      suggestedTrackId,
+      song: songObj,
     };
   } catch (err: any) {
     return {

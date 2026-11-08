@@ -13,7 +13,10 @@
       "permissions": [
         "RECORD_AUDIO",
         "INTERNET",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "package": "com.myra.music.ai"
     }

@@ -24,6 +24,7 @@ export const HomeScreen: React.FC = () => {
   const {
     currentUser,
     trendingTracks,
+    recentlyPlayed,
     isLoadingTrending,
     playTrack,
     activeMood,
@@ -33,10 +34,11 @@ export const HomeScreen: React.FC = () => {
     isPlaying,
     requestMicPermission,
     executeVoiceCommand,
+    setIsAuthModalOpen,
   } = usePlayer();
 
   const curatedTracks = trendingTracks.slice(0, 5);
-  const shelfTracks = trendingTracks.slice(5, 12);
+  const recentTracks = recentlyPlayed.length > 0 ? recentlyPlayed : trendingTracks.slice(0, 6);
 
   const getFilteredTracks = () => {
     if (activeMood === 'all') return curatedTracks;
@@ -60,7 +62,7 @@ export const HomeScreen: React.FC = () => {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* 1. Greeting Section (Matching Web line 37-57) */}
+      {/* 1. Top Greeting Header */}
       <View style={styles.greetingRow}>
         <View style={styles.greetingTitleCol}>
           <View style={styles.greetingSubRow}>
@@ -74,7 +76,7 @@ export const HomeScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.profileChip}
-          onPress={() => setActiveScreen('myra-ai')}
+          onPress={() => setIsAuthModalOpen(true)}
           activeOpacity={0.7}
         >
           <Icon name="account-circle" size={16} color="#4cd7f6" />
@@ -84,7 +86,7 @@ export const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 2. Mood Filters Carousel (Matching Web line 59-78) */}
+      {/* 2. Mood Filters Carousel */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -112,9 +114,8 @@ export const HomeScreen: React.FC = () => {
         })}
       </ScrollView>
 
-      {/* 3. "Hey Myra" Voice Assistant Banner with "Ask Myra" Button (Matching Web line 85-153) */}
+      {/* 3. "Hey Myra" Voice Assistant Banner with "Ask Myra" Button */}
       <View style={styles.aiBanner}>
-        {/* Subtle Ambient glow circles */}
         <View style={styles.ambientGlowRight} />
         <View style={styles.ambientGlowLeft} />
 
@@ -135,7 +136,7 @@ export const HomeScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* EXACT "Ask Myra" Button */}
+          {/* EXACT "Ask Myra" Purple Button */}
           <TouchableOpacity
             style={styles.askMyraBtn}
             onPress={handleAskMyraPress}
@@ -180,8 +181,60 @@ export const HomeScreen: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* 4. Curated by Myra AI Section (Matching Web line 155-220) */}
+      {/* 4. RECENTLY PLAYED SECTION (Dedicated Shelf) */}
       <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Recently Played</Text>
+          <Icon name="history" size={16} color="#4cd7f6" />
+        </View>
+        <TouchableOpacity onPress={() => setActiveScreen('playlists')} activeOpacity={0.7}>
+          <Text style={styles.seeAllText}>See all</Text>
+        </TouchableOpacity>
+      </View>
+
+      {recentTracks.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyCardText}>No recently played songs yet.</Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shelfCarousel}
+        >
+          {recentTracks.map((track) => {
+            const isThisPlaying = currentTrack?.id === track.id && isPlaying;
+            return (
+              <TouchableOpacity
+                key={`recent-${track.id}`}
+                style={styles.recentCard}
+                onPress={() => playTrack(track)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.recentCoverWrapper}>
+                  <Image source={{ uri: track.coverUrl }} style={styles.recentCover} />
+                  <View style={[styles.recentPlayBadge, isThisPlaying && styles.recentPlayBadgeActive]}>
+                    <Icon
+                      name={isThisPlaying ? 'pause' : 'play-arrow'}
+                      size={14}
+                      color={isThisPlaying ? '#0b0e17' : '#ffffff'}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.recentTitle} numberOfLines={1}>
+                  {track.title}
+                </Text>
+                <Text style={styles.recentArtist} numberOfLines={1}>
+                  {track.artist}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* 5. Curated by Myra AI Section */}
+      <View style={[styles.sectionHeader, { marginTop: 24 }]}>
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>Curated by Myra AI</Text>
           <View style={styles.pulsingSectionDot} />
@@ -231,41 +284,6 @@ export const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           );
         })
-      )}
-
-      {/* 5. Recently Played / Trending Shelf */}
-      {shelfTracks.length > 0 && (
-        <>
-          <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>Trending & Discoveries</Text>
-            </View>
-            <Text style={styles.sectionMeta}>Global Charts</Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.shelfCarousel}
-          >
-            {shelfTracks.map((track) => (
-              <TouchableOpacity
-                key={track.id}
-                style={styles.shelfCard}
-                onPress={() => playTrack(track)}
-                activeOpacity={0.8}
-              >
-                <Image source={{ uri: track.coverUrl }} style={styles.shelfCover} />
-                <Text style={styles.shelfTitle} numberOfLines={1}>
-                  {track.title}
-                </Text>
-                <Text style={styles.shelfArtist} numberOfLines={1}>
-                  {track.artist}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </>
       )}
     </ScrollView>
   );
@@ -446,17 +464,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     backgroundColor: '#a078ff',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
     shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.6,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 5,
   },
   askMyraBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: '#ffffff',
   },
@@ -518,6 +536,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#e1e2ec',
   },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4cd7f6',
+  },
   pulsingSectionDot: {
     width: 6,
     height: 6,
@@ -527,6 +550,54 @@ const styles = StyleSheet.create({
   sectionMeta: {
     fontSize: 12,
     color: '#cbc3d7',
+  },
+  shelfCarousel: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingBottom: 8,
+  },
+  recentCard: {
+    width: 124,
+    gap: 4,
+  },
+  recentCoverWrapper: {
+    width: 124,
+    height: 124,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#1d1f27',
+  },
+  recentCover: {
+    width: '100%',
+    height: '100%',
+  },
+  recentPlayBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(16, 19, 26, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.4)',
+  },
+  recentPlayBadgeActive: {
+    backgroundColor: '#4cd7f6',
+    borderColor: '#4cd7f6',
+  },
+  recentTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#e1e2ec',
+    marginTop: 2,
+  },
+  recentArtist: {
+    fontSize: 10,
+    color: '#8e92a4',
   },
   loaderBox: {
     padding: 30,
@@ -558,19 +629,18 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   trackCardActive: {
-    borderColor: 'rgba(76, 215, 246, 0.4)',
     backgroundColor: '#272a32',
+    borderColor: 'rgba(76, 215, 246, 0.4)',
   },
   trackCover: {
     width: 48,
     height: 48,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#272a32',
   },
   trackInfo: {
     flex: 1,
     marginLeft: 12,
-    marginRight: 8,
   },
   trackTitle: {
     fontSize: 13,
@@ -595,30 +665,5 @@ const styles = StyleSheet.create({
   },
   playPillActive: {
     backgroundColor: '#4cd7f6',
-  },
-  shelfCarousel: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingBottom: 10,
-  },
-  shelfCard: {
-    width: 120,
-  },
-  shelfCover: {
-    width: 120,
-    height: 120,
-    borderRadius: 14,
-    backgroundColor: '#272a32',
-    marginBottom: 6,
-  },
-  shelfTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#e1e2ec',
-  },
-  shelfArtist: {
-    fontSize: 10,
-    color: '#cbc3d7',
-    marginTop: 2,
   },
 });
