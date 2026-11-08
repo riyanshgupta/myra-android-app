@@ -6,6 +6,10 @@ import {
   getTrendingApi,
   getTrackStreamApi,
   getCurrentUser,
+  logoutApi,
+  getFavoritesApi,
+  addFavoriteTrackApi,
+  removeFavoriteTrackApi,
 } from '../services/api';
 
 interface PlayerContextType {
@@ -20,12 +24,22 @@ interface PlayerContextType {
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   currentUser: UserResp | null;
+  setCurrentUser: (user: UserResp | null) => void;
+  isAuthChecking: boolean;
+  logout: () => void;
+  activeScreen: string;
+  setActiveScreen: (screen: string) => void;
+  activeMood: string;
+  setActiveMood: (mood: string) => void;
+  likedTracks: Record<string, boolean>;
+  toggleLike: (track: Track) => Promise<void>;
   playTrack: (track: Track) => Promise<void>;
   togglePlay: () => Promise<void>;
   pauseTrack: () => Promise<void>;
   nextTrack: () => Promise<void>;
   prevTrack: () => Promise<void>;
   seekTo: (seconds: number) => Promise<void>;
+  refreshTrending: () => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -40,16 +54,25 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isLoadingTrending, setIsLoadingTrending] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<UserResp | null>(getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<UserResp | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [activeScreen, setActiveScreen] = useState<string>('home');
+  const [activeMood, setActiveMood] = useState<string>('all');
+  const [likedTracks, setLikedTracks] = useState<Record<string, boolean>>({});
 
   const playerRef = useRef<any>(null);
   const subscriptionRef = useRef<any>(null);
 
-  // Configure Audio Mode on startup
+  // Initialize storage, auth check, audio mode, and initial songs
   useEffect(() => {
-    async function configureAudio() {
-      await initApiStorage();
-      setCurrentUser(getCurrentUser());
+    async function initApp() {
+      try {
+        await initApiStorage();
+        const user = getCurrentUser();
+        setCurrentUser(user);
+      } catch (_) {}
+      setIsAuthChecking(false);
+
       try {
         await setAudioModeAsync({
           playsInSilentMode: true,
@@ -57,20 +80,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         });
       } catch (_) {}
 
-      // Load Initial Trending Songs
-      setIsLoadingTrending(true);
-      try {
-        const trending = await getTrendingApi();
-        if (trending && trending.length > 0) {
-          setTrendingTracks(trending);
-          setQueue(trending);
-          setCurrentTrack(trending[0]);
-          setDuration(trending[0].duration || 180);
-        }
-      } catch (_) {}
-      setIsLoadingTrending(false);
+      // Load initial trending catalog
+      await refreshTrending();
+      // Load user favorites if logged in
+      if (getCurrentUser()) {
+        loadUserFavorites();
+      }
     }
-    configureAudio();
+
+    initApp();
 
     return () => {
       if (subscriptionRef.current) {
@@ -85,6 +103,62 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     };
   }, []);
+
+  const refreshTrending = async () => {
+    setIsLoadingTrending(true);
+    try {
+      const trending = await getTrendingApi();
+      if (trending && trending.length > 0) {
+        setTrendingTracks(trending);
+        setQueue(trending);
+        if (!currentTrack) {
+          setCurrentTrack(trending[0]);
+          setDuration(trending[0].duration || 180);
+        }
+      }
+    } catch (_) {}
+    setIsLoadingTrending(false);
+  };
+
+  const loadUserFavorites = async () => {
+    try {
+      const favs = await getFavoritesApi();
+      const map: Record<string, boolean> = {};
+      favs.forEach((t) => {
+        if (t.id) map[t.id] = true;
+      });
+      setLikedTracks(map);
+    } catch (_) {}
+  };
+
+  const toggleLike = async (track: Track) => {
+    if (!track || !track.id) return;
+    const isCurrentlyLiked = Boolean(likedTracks[track.id]);
+    setLikedTracks((prev) => ({
+      ...prev,
+      [track.id]: !isCurrentlyLiked,
+    }));
+
+    try {
+      if (isCurrentlyLiked) {
+        await removeFavoriteTrackApi(track.id);
+      } else {
+        await addFavoriteTrackApi(track.id);
+      }
+    } catch (_) {
+      // Revert if API fails
+      setLikedTracks((prev) => ({
+        ...prev,
+        [track.id]: isCurrentlyLiked,
+      }));
+    }
+  };
+
+  const logout = () => {
+    logoutApi();
+    setCurrentUser(null);
+    setLikedTracks({});
+  };
 
   const playTrack = async (track: Track) => {
     setCurrentTrack(track);
@@ -215,12 +289,22 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isAuthModalOpen,
         setIsAuthModalOpen,
         currentUser,
+        setCurrentUser,
+        isAuthChecking,
+        logout,
+        activeScreen,
+        setActiveScreen,
+        activeMood,
+        setActiveMood,
+        likedTracks,
+        toggleLike,
         playTrack,
         togglePlay,
         pauseTrack,
         nextTrack,
         prevTrack,
         seekTo,
+        refreshTrending,
       }}
     >
       {children}

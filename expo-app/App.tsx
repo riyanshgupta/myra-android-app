@@ -1,104 +1,57 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
   StatusBar,
+  StyleSheet,
   Platform,
+  ActivityIndicator,
+  Text,
 } from 'react-native';
 import { PlayerProvider, usePlayer } from './src/context/PlayerContext';
+import { TopBar } from './src/components/TopBar';
+import { MobileNavbar } from './src/components/MobileNavbar';
+import { MiniPlayer } from './src/components/MiniPlayer';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { PlayerScreen } from './src/screens/PlayerScreen';
 import { PlaylistsScreen } from './src/screens/PlaylistsScreen';
 import { MyraAiScreen } from './src/screens/MyraAiScreen';
-import { loginApi, registerApi } from './src/services/api';
+import { AuthScreen } from './src/screens/AuthScreen';
+import { Icon } from './src/components/Icon';
 
-const AuthModal = () => {
-  const { isAuthModalOpen, setIsAuthModalOpen } = usePlayer();
-  const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [username, setUsername] = useState<string>('');
-  const [pin, setPin] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+const AppContent: React.FC = () => {
+  const { currentUser, isAuthChecking, activeScreen } = usePlayer();
 
-  const handleSubmit = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      if (isLogin) {
-        await loginApi(username.trim().toLowerCase(), pin);
-      } else {
-        await registerApi(username.trim().toLowerCase(), pin);
-      }
-      setIsAuthModalOpen(false);
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Invalid username or PIN.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible={isAuthModalOpen} animationType="slide" transparent>
-      <View style={modalStyles.overlay}>
-        <View style={modalStyles.container}>
-          <Text style={modalStyles.title}>{isLogin ? 'Sign In' : 'Register'}</Text>
-
-          {error && <Text style={modalStyles.errorText}>{error}</Text>}
-
-          <TextInput
-            style={modalStyles.input}
-            placeholder="Username"
-            placeholderTextColor="#8e92a4"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-          />
-
-          <TextInput
-            style={modalStyles.input}
-            placeholder="6-Digit PIN"
-            placeholderTextColor="#8e92a4"
-            value={pin}
-            secureTextEntry
-            keyboardType="numeric"
-            maxLength={6}
-            onChangeText={(t: string) => setPin(t.replace(/\D/g, ''))}
-          />
-
-          <TouchableOpacity style={modalStyles.submitBtn} onPress={handleSubmit} disabled={loading}>
-            <Text style={modalStyles.submitText}>
-              {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Register'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={modalStyles.switchBtn} onPress={() => setIsLogin(!isLogin)}>
-            <Text style={modalStyles.switchText}>
-              {isLogin ? "Don't have an account? Register" : 'Already registered? Sign In'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setIsAuthModalOpen(false)}>
-            <Text style={modalStyles.closeText}>Close</Text>
-          </TouchableOpacity>
+  // 1. Loading splash while initializing AsyncStorage and stored auth
+  if (isAuthChecking) {
+    return (
+      <View style={styles.splashContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0b0e17" />
+        <View style={styles.splashBadge}>
+          <Icon name="graphic-eq" size={36} color="#ffffff" />
         </View>
+        <Text style={styles.splashTitle}>Myra</Text>
+        <Text style={styles.splashSubtitle}>Intelligent Music OS</Text>
+        <ActivityIndicator size="small" color="#4cd7f6" style={styles.splashLoader} />
       </View>
-    </Modal>
-  );
-};
+    );
+  }
 
-const AppContent = () => {
-  const [activeTab, setActiveTab] = useState<string>('home');
-  const { currentTrack, isPlaying, togglePlay } = usePlayer();
+  // 2. Unauthenticated: Render ONLY AuthScreen (no navbars, no player, no main tabs)
+  if (!currentUser) {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor="#0b0e17" />
+        <AuthScreen />
+      </View>
+    );
+  }
 
+  // 3. Authenticated: Render full application with TopBar, Active Screen, MiniPlayer, and Elevated Navbar
   const renderScreen = () => {
-    switch (activeTab) {
+    switch (activeScreen) {
       case 'home':
-        return <HomeScreen onNavigate={(s) => setActiveTab(s)} />;
+        return <HomeScreen />;
       case 'search':
         return <SearchScreen />;
       case 'player':
@@ -108,54 +61,27 @@ const AppContent = () => {
       case 'myra-ai':
         return <MyraAiScreen />;
       default:
-        return <HomeScreen onNavigate={(s) => setActiveTab(s)} />;
+        return <HomeScreen />;
     }
   };
 
+  const isPlayerScreen = activeScreen === 'player';
+
   return (
     <View style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#10131a" />
-      <View style={styles.mainContainer}>
-        {renderScreen()}
+      <StatusBar barStyle="light-content" backgroundColor="#0c0f18" />
 
-        {/* Bottom Mini Player */}
-        {activeTab !== 'player' && currentTrack && (
-          <TouchableOpacity style={styles.miniPlayer} onPress={() => setActiveTab('player')}>
-            <View style={styles.miniInfo}>
-              <Text style={styles.miniTitle} numberOfLines={1}>
-                {currentTrack.title}
-              </Text>
-              <Text style={styles.miniArtist} numberOfLines={1}>
-                {currentTrack.artist}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.miniPlayBtn} onPress={togglePlay}>
-              <Text style={styles.miniPlayIcon}>{isPlaying ? '⏸' : '▶'}</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
+      {/* Top Bar for Mobile */}
+      {!isPlayerScreen && <TopBar />}
 
-        {/* Bottom Navigation Bar */}
-        <View style={styles.navBar}>
-          {[
-            { id: 'home', label: 'Home', icon: '🏠' },
-            { id: 'search', label: 'Search', icon: '🔍' },
-            { id: 'player', label: 'Player', icon: '🎵' },
-            { id: 'playlists', label: 'Library', icon: '📚' },
-            { id: 'myra-ai', label: 'Myra AI', icon: '🎙️' },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <TouchableOpacity key={tab.id} style={styles.navTab} onPress={() => setActiveTab(tab.id)}>
-                <Text style={styles.navIcon}>{tab.icon}</Text>
-                <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{tab.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      {/* Main Screen Content Viewport */}
+      <View style={styles.screenContainer}>{renderScreen()}</View>
 
-        <AuthModal />
-      </View>
+      {/* Bottom Mini Player (Visible when not on full Player screen) */}
+      {!isPlayerScreen && <MiniPlayer />}
+
+      {/* Bottom Navigation Bar (Elevated above Android hardware/gesture nav bar) */}
+      <MobileNavbar />
     </View>
   );
 };
@@ -171,56 +97,51 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#10131a',
+    backgroundColor: '#0c0f18',
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
   },
-  mainContainer: { flex: 1, backgroundColor: '#10131a' },
-  miniPlayer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1d29',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(76,215,246,0.2)',
+  screenContainer: {
+    flex: 1,
+    backgroundColor: '#0c0f18',
   },
-  miniInfo: { flex: 1 },
-  miniTitle: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
-  miniArtist: { color: '#4cd7f6', fontSize: 11, marginTop: 2 },
-  miniPlayBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#4cd7f6',
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#0b0e17',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 24,
   },
-  miniPlayIcon: { color: '#10131a', fontSize: 14, fontWeight: 'bold' },
-  navBar: {
-    flexDirection: 'row',
-    height: 60,
-    backgroundColor: '#0d1017',
-    borderTopWidth: 1,
-    borderTopColor: '#1e2330',
+  splashBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: '#1b2234',
+    borderWidth: 2,
+    borderColor: '#4cd7f6',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 16,
   },
-  navTab: { alignItems: 'center', justifyContent: 'center' },
-  navIcon: { fontSize: 16 },
-  navLabel: { color: '#8e92a4', fontSize: 10, marginTop: 2 },
-  navLabelActive: { color: '#4cd7f6', fontWeight: 'bold' },
-});
-
-const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
-  container: { backgroundColor: '#1a1d29', borderRadius: 20, padding: 20 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#ffffff', marginBottom: 16 },
-  errorText: { color: '#ff6b6b', fontSize: 12, marginBottom: 12, fontWeight: 'bold' },
-  input: { backgroundColor: '#10131a', borderRadius: 12, padding: 12, color: '#ffffff', marginBottom: 12 },
-  submitBtn: { backgroundColor: '#4cd7f6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
-  submitText: { color: '#10131a', fontWeight: 'bold', fontSize: 14 },
-  switchBtn: { marginTop: 12, alignItems: 'center' },
-  switchText: { color: '#8e92a4', fontSize: 12 },
-  closeBtn: { marginTop: 16, alignItems: 'center' },
-  closeText: { color: '#ff6b6b', fontSize: 12, fontWeight: 'bold' },
+  splashTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  splashSubtitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4cd7f6',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  splashLoader: {
+    marginTop: 28,
+  },
 });

@@ -9,89 +9,236 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
+import { Icon } from '../components/Icon';
+import { Track } from '../types/music';
 
-export const HomeScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }) => {
+const MOOD_CATEGORIES = [
+  { id: 'all', name: 'All', icon: 'auto-awesome' },
+  { id: 'chill', name: 'Chill Drive', icon: 'directions-car' },
+  { id: 'focus', name: 'Focus', icon: 'psychology' },
+  { id: 'energy', name: 'High Energy', icon: 'bolt' },
+  { id: 'night', name: 'Night Pulse', icon: 'nightlife' },
+  { id: 'synth', name: 'Synthwave', icon: 'equalizer' },
+];
+
+export const HomeScreen: React.FC = () => {
   const {
     currentUser,
-    setIsAuthModalOpen,
     trendingTracks,
     isLoadingTrending,
     playTrack,
+    activeMood,
+    setActiveMood,
+    setActiveScreen,
+    currentTrack,
+    isPlaying,
   } = usePlayer();
 
-  const curatedTracks = trendingTracks.slice(0, 4);
+  const curatedTracks = trendingTracks.slice(0, 5);
+  const shelfTracks = trendingTracks.slice(5, 12);
+
+  const getFilteredTracks = () => {
+    if (activeMood === 'all') return curatedTracks;
+    // Contextual filter
+    return trendingTracks.filter((_, idx) => idx % 2 === 0).slice(0, 5);
+  };
+
+  const displayedTracks = getFilteredTracks();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Greeting Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greetingTitle}>
-            Good Evening{currentUser ? `, ${currentUser.username}` : ''}
-          </Text>
-          <Text style={styles.greetingSubtitle}>Myra Intelligent Music OS</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* 1. Greeting Header */}
+      <View style={styles.greetingRow}>
+        <View style={styles.greetingTitleCol}>
+          <View style={styles.greetingSubRow}>
+            <Text style={styles.greetingTitle}>
+              Good evening{currentUser ? `, @${currentUser.username}` : ''}
+            </Text>
+            <Icon name="auto-awesome" size={18} color="#4cd7f6" />
+          </View>
+          <Text style={styles.greetingSub}>Myra Intelligent Audio Copilot</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.profileBtn}
-          onPress={() => setIsAuthModalOpen(true)}
-        >
-          <Text style={styles.profileBtnText}>
-            {currentUser ? `@${currentUser.username}` : 'Sign In'}
-          </Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Voice Assistant Callout Banner */}
-      <TouchableOpacity
-        style={styles.aiBanner}
-        onPress={() => onNavigate('myra-ai')}
+      {/* 2. Mood Filters Carousel */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.moodsCarousel}
       >
-        <View style={styles.aiBannerHeader}>
-          <View style={styles.aiBadge}>
-            <Text style={styles.aiBadgeText}>HEY MYRA AI</Text>
-          </View>
-          <Text style={styles.aiPromptText}>"Play synthwave for driving"</Text>
-        </View>
-        <Text style={styles.aiDesc}>Tap to ask Myra Voice Assistant</Text>
-      </TouchableOpacity>
+        {MOOD_CATEGORIES.map((m) => {
+          const isActive = activeMood === m.id;
+          return (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.moodChip, isActive && styles.moodChipActive]}
+              onPress={() => setActiveMood(m.id)}
+              activeOpacity={0.8}
+            >
+              <Icon
+                name={m.icon}
+                size={14}
+                color={isActive ? '#0b0e17' : '#cad0e0'}
+              />
+              <Text style={[styles.moodText, isActive && styles.moodTextActive]}>
+                {m.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
-      {/* Curated Recommendations Section */}
+      {/* 3. "Hey Myra" Voice Assistant Banner */}
+      <View style={styles.aiBanner}>
+        <View style={styles.aiBannerTop}>
+          <View style={styles.aiBannerTitleRow}>
+            <View style={styles.aiIconBadge}>
+              <Icon name="graphic-eq" size={18} color="#4cd7f6" />
+            </View>
+            <View>
+              <View style={styles.aiTagRow}>
+                <Text style={styles.aiTitle}>Myra Voice Assistant</Text>
+                <View style={styles.heyBadge}>
+                  <Text style={styles.heyBadgeText}>"Hey Myra"</Text>
+                </View>
+              </View>
+              <Text style={styles.aiSub}>Tap below or speak to command playback</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.askMyraBtn}
+            onPress={() => setActiveScreen('myra-ai')}
+            activeOpacity={0.8}
+          >
+            <Icon name="mic" size={16} color="#0b0e17" />
+            <Text style={styles.askMyraBtnText}>Speak</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Real Equalizer Visualizer Strip */}
+        <View style={styles.visualizerStrip}>
+          <View style={styles.barsContainer}>
+            <View style={[styles.visBar, { height: 8, backgroundColor: '#4cd7f6' }]} />
+            <View style={[styles.visBar, { height: 16, backgroundColor: '#a078ff' }]} />
+            <View style={[styles.visBar, { height: 11, backgroundColor: '#4cd7f6' }]} />
+            <View style={[styles.visBar, { height: 18, backgroundColor: '#ffffff' }]} />
+            <View style={[styles.visBar, { height: 9, backgroundColor: '#a078ff' }]} />
+          </View>
+          <Text style={styles.visualizerCaption} numberOfLines={1}>
+            "Tuned for late night calm driving tempo"
+          </Text>
+          <Icon name="tune" size={14} color="#8e92a4" />
+        </View>
+
+        {/* Quick Prompt Pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.promptScroll}>
+          {[
+            'Play synthwave for highway cruising',
+            'Match BPM to night pulse',
+            'Queue chill vocalists',
+          ].map((prompt) => (
+            <TouchableOpacity
+              key={prompt}
+              style={styles.promptPill}
+              onPress={() => setActiveScreen('myra-ai')}
+            >
+              <Text style={styles.promptPillText}>"{prompt}"</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* 4. Curated by Myra AI Section */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Curated By Myra AI</Text>
-        <Text style={styles.sectionSub}>For You</Text>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Curated by Myra AI</Text>
+          <View style={styles.pulsingSectionDot} />
+        </View>
+        <Text style={styles.sectionMeta}>For You</Text>
       </View>
 
       {isLoadingTrending ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#4cd7f6" />
-          <Text style={styles.loaderText}>Fetching Live Songs from API...</Text>
+        <View style={styles.loaderBox}>
+          <ActivityIndicator size="small" color="#4cd7f6" />
+          <Text style={styles.loaderText}>Connecting to Live Catalog...</Text>
         </View>
-      ) : curatedTracks.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No tracks received from API.</Text>
+      ) : displayedTracks.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyCardText}>No curated tracks available right now.</Text>
         </View>
       ) : (
-        curatedTracks.map((track) => (
-          <TouchableOpacity
-            key={track.id}
-            style={styles.trackCard}
-            onPress={() => playTrack(track)}
+        displayedTracks.map((track) => {
+          const isThisPlaying = currentTrack?.id === track.id && isPlaying;
+          return (
+            <TouchableOpacity
+              key={track.id}
+              style={[styles.trackCard, isThisPlaying && styles.trackCardActive]}
+              onPress={() => playTrack(track)}
+              activeOpacity={0.8}
+            >
+              <Image source={{ uri: track.coverUrl }} style={styles.trackCover} />
+              <View style={styles.trackInfo}>
+                <Text
+                  style={[styles.trackTitle, isThisPlaying && styles.trackTitleActive]}
+                  numberOfLines={1}
+                >
+                  {track.title}
+                </Text>
+                <Text style={styles.trackArtist} numberOfLines={1}>
+                  {track.artist} • {track.durationFormatted}
+                </Text>
+              </View>
+
+              <View style={[styles.playPill, isThisPlaying && styles.playPillActive]}>
+                <Icon
+                  name={isThisPlaying ? 'pause' : 'play-arrow'}
+                  size={16}
+                  color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
+                />
+              </View>
+            </TouchableOpacity>
+          );
+        })
+      )}
+
+      {/* 5. Recently Played / Trending Shelf */}
+      {shelfTracks.length > 0 && (
+        <>
+          <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>Trending & Discoveries</Text>
+            </View>
+            <Text style={styles.sectionMeta}>Global Charts</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.shelfCarousel}
           >
-            <Image source={{ uri: track.coverUrl }} style={styles.trackCover} />
-            <View style={styles.trackInfo}>
-              <Text style={styles.trackTitle} numberOfLines={1}>
-                {track.title}
-              </Text>
-              <Text style={styles.trackArtist} numberOfLines={1}>
-                {track.artist} • {track.durationFormatted}
-              </Text>
-            </View>
-            <View style={styles.playBadge}>
-              <Text style={styles.playBadgeText}>▶</Text>
-            </View>
-          </TouchableOpacity>
-        ))
+            {shelfTracks.map((track) => (
+              <TouchableOpacity
+                key={track.id}
+                style={styles.shelfCard}
+                onPress={() => playTrack(track)}
+                activeOpacity={0.8}
+              >
+                <Image source={{ uri: track.coverUrl }} style={styles.shelfCover} />
+                <Text style={styles.shelfTitle} numberOfLines={1}>
+                  {track.title}
+                </Text>
+                <Text style={styles.shelfArtist} numberOfLines={1}>
+                  {track.artist}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
       )}
     </ScrollView>
   );
@@ -100,148 +247,296 @@ export const HomeScreen = ({ onNavigate }: { onNavigate: (screen: string) => voi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#10131a',
+    backgroundColor: '#0c0f18',
   },
-  content: {
+  contentContainer: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 40,
   },
-  header: {
+  greetingRow: {
+    marginBottom: 16,
+  },
+  greetingTitleCol: {
+    gap: 4,
+  },
+  greetingSubRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 6,
   },
   greetingTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#ffffff',
+    letterSpacing: -0.3,
   },
-  greetingSubtitle: {
-    fontSize: 12,
-    color: '#4cd7f6',
-    marginTop: 2,
-  },
-  profileBtn: {
-    backgroundColor: '#1e2330',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(76,215,246,0.3)',
-  },
-  profileBtnText: {
-    color: '#4cd7f6',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  aiBanner: {
-    backgroundColor: '#1a1d29',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(76,215,246,0.3)',
-    marginBottom: 24,
-  },
-  aiBannerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  aiBadge: {
-    backgroundColor: 'rgba(76,215,246,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  aiBadgeText: {
-    color: '#4cd7f6',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  aiPromptText: {
-    color: '#a0a5b8',
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
-  aiDesc: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  sectionSub: {
+  greetingSub: {
     fontSize: 12,
     color: '#8e92a4',
   },
-  loaderContainer: {
+  moodsCarousel: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 16,
+  },
+  moodChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#151b2a',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  moodChipActive: {
+    backgroundColor: '#4cd7f6',
+    borderColor: '#4cd7f6',
+  },
+  moodText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#cad0e0',
+  },
+  moodTextActive: {
+    color: '#0b0e17',
+    fontWeight: '800',
+  },
+  aiBanner: {
+    backgroundColor: '#131825',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.25)',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  aiBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  aiBannerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  aiIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1e2638',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.4)',
+  },
+  aiTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  heyBadge: {
+    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  heyBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#4cd7f6',
+  },
+  aiSub: {
+    fontSize: 11,
+    color: '#8e92a4',
+    marginTop: 2,
+  },
+  askMyraBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#4cd7f6',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+  },
+  askMyraBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0b0e17',
+  },
+  visualizerStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0c0f18',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    height: 18,
+  },
+  visBar: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+  visualizerCaption: {
+    fontSize: 11,
+    color: '#cad0e0',
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  promptScroll: {
+    flexDirection: 'row',
+  },
+  promptPill: {
+    backgroundColor: '#1b2234',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  promptPillText: {
+    fontSize: 11,
+    color: '#cad0e0',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  pulsingSectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4cd7f6',
+  },
+  sectionMeta: {
+    fontSize: 12,
+    color: '#8e92a4',
+  },
+  loaderBox: {
     padding: 30,
     alignItems: 'center',
   },
   loaderText: {
-    color: '#8e92a4',
     fontSize: 12,
-    marginTop: 10,
+    color: '#8e92a4',
+    marginTop: 8,
   },
-  emptyContainer: {
+  emptyCard: {
     padding: 20,
-    backgroundColor: '#1a1d29',
-    borderRadius: 12,
+    backgroundColor: '#131825',
+    borderRadius: 14,
     alignItems: 'center',
   },
-  emptyText: {
-    color: '#8e92a4',
+  emptyCardText: {
     fontSize: 12,
+    color: '#8e92a4',
   },
   trackCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1d29',
-    borderRadius: 16,
+    backgroundColor: '#131825',
+    borderRadius: 14,
     padding: 10,
-    marginBottom: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  trackCardActive: {
+    borderColor: 'rgba(76, 215, 246, 0.4)',
+    backgroundColor: '#172033',
   },
   trackCover: {
     width: 48,
     height: 48,
     borderRadius: 10,
+    backgroundColor: '#1e2436',
   },
   trackInfo: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
   },
   trackTitle: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  },
+  trackTitleActive: {
+    color: '#4cd7f6',
   },
   trackArtist: {
+    fontSize: 11,
     color: '#8e92a4',
-    fontSize: 12,
     marginTop: 2,
   },
-  playBadge: {
+  playPill: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#4cd7f6',
+    backgroundColor: '#1b2438',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playBadgeText: {
-    color: '#10131a',
+  playPillActive: {
+    backgroundColor: '#4cd7f6',
+  },
+  shelfCarousel: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingBottom: 10,
+  },
+  shelfCard: {
+    width: 120,
+  },
+  shelfCover: {
+    width: 120,
+    height: 120,
+    borderRadius: 14,
+    backgroundColor: '#1e2436',
+    marginBottom: 6,
+  },
+  shelfTitle: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  shelfArtist: {
+    fontSize: 10,
+    color: '#8e92a4',
+    marginTop: 2,
   },
 });

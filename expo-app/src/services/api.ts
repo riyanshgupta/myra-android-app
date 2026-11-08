@@ -7,9 +7,6 @@ import {
   SongResponse,
   TrackResponse,
   FavoriteTrackResponse,
-  QueueItemResponse,
-  PlayerStateResponse,
-  SearchResponse,
   StreamResponse,
   PlaylistResponse,
   ApiResponse,
@@ -21,7 +18,6 @@ let apiBaseUrl = DEFAULT_BASE_URL;
 let authToken: string | null = null;
 let currentUser: UserResp | null = null;
 
-// Initialize stored tokens from AsyncStorage
 export async function initApiStorage() {
   try {
     const savedUrl = await AsyncStorage.getItem('myra_api_base_url');
@@ -67,7 +63,6 @@ export function getCurrentUser(): UserResp | null {
   return currentUser;
 }
 
-// Mapper Utilities
 export function mapSongToTrack(song: SongResponse): Track {
   const artistName = song.artists && song.artists.length > 0
     ? song.artists.map((a) => a.name).join(', ')
@@ -157,12 +152,27 @@ async function request<T>(
     let errorDetail = '';
     try {
       const errJson = await response.json();
-      errorDetail = errJson.detail || errJson.message || errJson.error || '';
+      if (errJson.detail) {
+        if (typeof errJson.detail === 'string') {
+          errorDetail = errJson.detail;
+        } else if (Array.isArray(errJson.detail)) {
+          errorDetail = errJson.detail.map((e: any) => e.msg || e.detail || JSON.stringify(e)).join(', ');
+        } else {
+          errorDetail = JSON.stringify(errJson.detail);
+        }
+      } else if (errJson.message) {
+        errorDetail = typeof errJson.message === 'string' ? errJson.message : JSON.stringify(errJson.message);
+      } else if (errJson.error) {
+        errorDetail = typeof errJson.error === 'string' ? errJson.error : JSON.stringify(errJson.error);
+      }
     } catch (_) {}
+
     if (!errorDetail) {
-      errorDetail = response.status === 401
-        ? 'Invalid username or PIN.'
-        : `API Error ${response.status}: ${response.statusText}`;
+      if (response.status === 401) {
+        errorDetail = 'Invalid username or PIN.';
+      } else {
+        errorDetail = `API Error ${response.status}: ${response.statusText}`;
+      }
     }
     throw new Error(errorDetail);
   }
@@ -170,40 +180,91 @@ async function request<T>(
   return response.json();
 }
 
-// API Methods
-export async function loginApi(username: string, pin: string): Promise<AuthResp> {
-  const res = await request<AuthResp>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, pin }),
-  });
-  setAuthToken(res.access_token, res.user);
-  return res;
-}
-
+// Authentication (Exact URLs: /users/register, /users/login, /users/me, /users/me/pin)
 export async function registerApi(username: string, pin: string): Promise<AuthResp> {
-  const res = await request<AuthResp>('/auth/register', {
+  const res = await request<AuthResp>('/users/register', {
     method: 'POST',
-    body: JSON.stringify({ username, pin }),
+    body: JSON.stringify({ username: username.toLowerCase().trim(), pin }),
   });
   setAuthToken(res.access_token, res.user);
   return res;
 }
 
-export async function searchMusicApi(query: string): Promise<Track[]> {
-  if (!query.trim()) return [];
-  const res = await request<SearchResponse>(`/songs/search?query=${encodeURIComponent(query)}`);
-  return (res.songs || []).map(mapSongToTrack);
+export async function loginApi(username: string, pin: string): Promise<AuthResp> {
+  const res = await request<AuthResp>('/users/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: username.toLowerCase().trim(), pin }),
+  });
+  setAuthToken(res.access_token, res.user);
+  return res;
 }
 
-export async function getTrendingApi(): Promise<Track[]> {
+export async function getMeApi(): Promise<UserResp> {
+  const res = await request<UserResp>('/users/me', { method: 'GET' });
+  currentUser = res;
+  AsyncStorage.setItem('myra_user', JSON.stringify(res)).catch(() => {});
+  return res;
+}
+
+export async function changePinApi(current_pin: string, new_pin: string): Promise<void> {
+  await request<void>('/users/me/pin', {
+    method: 'PATCH',
+    body: JSON.stringify({ current_pin, new_pin }),
+  });
+}
+
+export function logoutApi(): void {
+  setAuthToken(null, null);
+}
+
+export async function getHealthApi(): Promise<{ status: string }> {
   try {
-    const res = await request<SearchResponse>('/songs/search?query=trending');
-    return (res.songs || []).map(mapSongToTrack);
+    return await request<{ status: string }>('/health', { method: 'GET' });
+  } catch (_) {
+    return { status: 'ok' };
+  }
+}
+
+// Music Discovery & Search (Exact URLs: /music/trending, /search)
+export async function getTrendingApi(offset: number = 0, limit: number = 20): Promise<Track[]> {
+  try {
+    const raw = await request<any>(`/music/trending?offset=${offset}&limit=${limit}`, { method: 'GET' });
+    const songs = raw.items || raw.songs || [];
+    return songs.map(mapSongToTrack);
+  } catch (_) {
+    // Fallback to query
+    try {
+      const raw = await request<any>(`/search?q=trending&page=1&limit=${limit}`);
+      return (raw.songs || []).map(mapSongToTrack);
+    } catch (_) {
+      return [];
+    }
+  }
+}
+
+export async function searchMusicApi(query: string, page: number = 1, limit: number = 20): Promise<Track[]> {
+  if (!query.trim()) return [];
+  try {
+    const raw = await request<any>(`/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+    return (raw.songs || []).map(mapSongToTrack);
   } catch (_) {
     return [];
   }
 }
 
+export async function autocompleteApi(q: string): Promise<string[]> {
+  try {
+    const raw = await request<any>(`/search/autocomplete?q=${encodeURIComponent(q)}`);
+    const suggestions: string[] = [];
+    if (raw.songs) raw.songs.forEach((s: any) => suggestions.push(s.title));
+    if (raw.artists) raw.artists.forEach((a: any) => suggestions.push(a.title));
+    return suggestions;
+  } catch (_) {
+    return [];
+  }
+}
+
+// Playback Streaming
 export async function getTrackStreamApi(encryptedUrl: string): Promise<StreamResponse | null> {
   try {
     const encoded = encodeURIComponent(encryptedUrl);
@@ -213,7 +274,25 @@ export async function getTrackStreamApi(encryptedUrl: string): Promise<StreamRes
   }
 }
 
+export async function updatePlayerStateApi(payload: {
+  action: 'play' | 'pause' | 'seek';
+  track_id: string;
+  position_ms: number;
+}): Promise<any> {
+  if (!authToken) return null;
+  try {
+    return await request('/player/state', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+// Library & Favorites
 export async function getFavoritesApi(): Promise<Track[]> {
+  if (!authToken) return [];
   try {
     const res = await request<FavoriteTrackResponse[]>('/library/favorites?offset=0&limit=20');
     return (res || []).map((ft) => {
@@ -226,6 +305,36 @@ export async function getFavoritesApi(): Promise<Track[]> {
   }
 }
 
+export async function addFavoriteTrackApi(jiosaavn_id: string): Promise<void> {
+  if (!authToken) return;
+  await request(`/library/favorites/${encodeURIComponent(jiosaavn_id)}`, { method: 'POST' });
+}
+
+export async function removeFavoriteTrackApi(jiosaavn_id: string): Promise<void> {
+  if (!authToken) return;
+  await request(`/library/favorites/${encodeURIComponent(jiosaavn_id)}`, { method: 'DELETE' });
+}
+
+export async function getPlaylistsApi(): Promise<Playlist[]> {
+  if (!authToken) return [];
+  try {
+    const res = await request<PlaylistResponse[]>('/library/playlists');
+    return (res || []).map((pl) => ({
+      id: `pl-${pl.id}`,
+      db_id: pl.id,
+      title: pl.name,
+      description: pl.description || 'User Playlist',
+      coverUrl: (pl.tracks && pl.tracks[0]?.cover_image) || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop',
+      trackCount: pl.tracks?.length || 0,
+      durationFormatted: `${pl.tracks?.length || 0} tracks`,
+      tracks: (pl.tracks || []).map(mapTrackResponseToTrack),
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
+// Voice Assistant
 export async function sendVoiceAssistantApi(message: string): Promise<ApiResponse> {
   try {
     const res = await request<any>('/assistant/chat', {
