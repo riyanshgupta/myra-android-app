@@ -119,11 +119,8 @@ const AppContent: React.FC = () => {
       {/* Main Tab Viewport */}
       <View style={styles.screenContainer}>{renderTabScreen()}</View>
 
-      {/* Persistent Mini Player at bottom */}
-      <MiniPlayer />
-
-      {/* Bottom Navigation Bar */}
-      <MobileNavbar />
+      {/* Persistent Mini Player at bottom (hidden when player modal is open) */}
+      {!isPlayerOpen && <MiniPlayer />}
 
       {/* Full-Screen Animated Player Slide-Up Modal */}
       <Animated.View
@@ -137,6 +134,11 @@ const AppContent: React.FC = () => {
       >
         <PlayerScreen />
       </Animated.View>
+
+      {/* Bottom Navigation Bar elevated on top so user can switch tabs anytime */}
+      <View style={styles.navbarWrapper}>
+        <MobileNavbar />
+      </View>
     </View>
   );
 };
@@ -164,9 +166,14 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: Platform.OS === 'android' ? 76 : 80,
     backgroundColor: '#10131a',
     zIndex: 1000,
+  },
+  navbarWrapper: {
+    zIndex: 2000,
+    elevation: 25,
+    backgroundColor: '#10131a',
   },
   voiceToast: {
     position: 'absolute',

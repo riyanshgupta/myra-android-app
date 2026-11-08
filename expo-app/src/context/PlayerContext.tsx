@@ -352,16 +352,38 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  const playRequestIdRef = useRef<number>(0);
+
   const playTrack = async (
     track: Track,
     options?: { explicitQueue?: Track[]; keepCurrentQueue?: boolean }
   ) => {
     if (!track) return;
 
+    // Immediately stop and destroy any existing player to prevent double playback
+    if (playerRef.current) {
+      try {
+        playerRef.current.pause();
+        if (typeof playerRef.current.remove === 'function') playerRef.current.remove();
+        if (typeof playerRef.current.release === 'function') playerRef.current.release();
+      } catch (_) {}
+      playerRef.current = null;
+    }
+    if (subscriptionRef.current) {
+      try {
+        subscriptionRef.current.remove();
+      } catch (_) {}
+      subscriptionRef.current = null;
+    }
+
+    const currentRequestId = ++playRequestIdRef.current;
+
     setCurrentTrack(track);
     currentTrackRef.current = track;
     setDuration(track.duration || 180);
     setCurrentTime(0);
+    setIsPlaying(true);
+    isPlayingRef.current = true;
 
     // 1. Add to Recently Played and persist to AsyncStorage
     setRecentlyPlayed((prev) => {
@@ -376,8 +398,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setQueue(options.explicitQueue);
       queueRef.current = options.explicitQueue;
     } else if (!options?.keepCurrentQueue) {
-      // User picked a new song from search or voice prompt:
-      // Fetch recommendations and dynamically populate queue with related songs!
       getRecommendedApi(track.id, 20)
         .then((recs) => {
           if (recs && recs.length > 0) {
@@ -386,7 +406,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             setQueue(newQ);
             queueRef.current = newQ;
           } else {
-            // Keep current queue if no recommendations returned
             const exists = queueRef.current.some((t) => t.id === track.id);
             if (!exists) {
               const newQ = [track, ...queueRef.current];
@@ -398,25 +417,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         .catch(() => {});
     }
 
-    // 3. Clean up previous player & subscriptions
-    if (subscriptionRef.current) {
-      try {
-        subscriptionRef.current.remove();
-      } catch (_) {}
-      subscriptionRef.current = null;
-    }
-    if (playerRef.current) {
-      try {
-        playerRef.current.pause();
-        playerRef.current.remove();
-      } catch (_) {}
-      playerRef.current = null;
-    }
-
     let playbackUrl: string | null = null;
     if (track.encrypted_media_url) {
       const streamInfo = await getTrackStreamApi(track.encrypted_media_url);
       playbackUrl = streamInfo?.playback_url || null;
+    }
+
+    // If another playTrack request was initiated while awaiting stream URL, abort this one
+    if (currentRequestId !== playRequestIdRef.current) {
+      return;
     }
 
     if (!playbackUrl) {
@@ -426,7 +435,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     try {
-      // Re-assert background audio mode for Android lock screen & notification controls
       try {
         await setAudioModeAsync({
           playsInSilentMode: true,
@@ -436,6 +444,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           playThroughEarpieceAndroid: false,
         });
       } catch (_) {}
+
+      // Double-check no stale player remains
+      if (playerRef.current) {
+        try {
+          playerRef.current.pause();
+          playerRef.current.remove();
+        } catch (_) {}
+      }
 
       const player = createAudioPlayer({
         uri: playbackUrl,
@@ -455,7 +471,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               isPlayingRef.current = status.isPlaying;
             }
             if (typeof status.currentTime === 'number') {
-              setCurrentTime(Math.floor(status.currentTime));
+              // Smooth real-time sub-second tracking without Math.floor lag
+              setCurrentTime(status.currentTime);
             }
 
             // Reliable song completion check across expo-audio status variations

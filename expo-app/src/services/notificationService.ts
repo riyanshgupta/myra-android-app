@@ -62,6 +62,20 @@ export async function updatePlaybackNotification(track: Track | null, isPlaying:
     await initNotificationService();
 
     // Check / request notification permissions on Android 13+
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      try {
+        const { PermissionsAndroid } = require('react-native');
+        const has = await PermissionsAndroid.check('android.permission.POST_NOTIFICATIONS');
+        if (!has) {
+          await PermissionsAndroid.request('android.permission.POST_NOTIFICATIONS', {
+            title: 'Myra Music Playback',
+            message: 'Show song playback controls in your notification panel and lock screen.',
+            buttonPositive: 'Allow',
+          });
+        }
+      } catch (_) {}
+    }
+
     const perm = await Notifications.getPermissionsAsync();
     if (!perm.granted && perm.canAskAgain) {
       await Notifications.requestPermissionsAsync();

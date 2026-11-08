@@ -35,7 +35,14 @@ export type IconName =
   | 'check'
   | 'arrow-back'
   | 'lock'
-  | 'person';
+  | 'person'
+  | 'keyboard-arrow-down'
+  | 'expand-more'
+  | 'playlist-add'
+  | 'lyrics'
+  | 'devices'
+  | 'spatial-audio'
+  | 'arrow-forward';
 
 interface IconProps {
   name: IconName | string;
@@ -98,6 +105,28 @@ const SVG_PATHS: Record<string, string> = {
     'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.42l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.12z',
   repeat:
     'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z',
+  'keyboard-arrow-down':
+    'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
+  'expand-more':
+    'M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z',
+  'playlist-add':
+    'M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z',
+  lyrics:
+    'M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z',
+  devices:
+    'M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z',
+  'spatial-audio':
+    'M10 18v-1.5c0-1.63 2.52-2.5 4.5-2.5 1.98 0 4.5.87 4.5 2.5V18h-9zm4.5-5c-1.38 0-2.5-1.12-2.5-2.5S13.12 8 14.5 8s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5zM2 12c0 5.52 4.48 10 10 10v-2c-4.42 0-8-3.58-8-8s3.58-8 8-8V2C6.48 2 2 6.48 2 12z',
+  'arrow-forward':
+    'M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z',
+  verified:
+    'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  headphones:
+    'M12 3a9 9 0 0 0-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1a7 7 0 0 1 14 0v1h-4v8h4c1.1 0 2-.9 2-2v-7a9 9 0 0 0-9-9z',
+  speaker:
+    'M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 1.99 2 1.99L17 22c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+  smartphone:
+    'M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
 };
 
 export const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff' }) => {
@@ -154,8 +183,19 @@ export const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff' }
         check: 'check',
         shuffle: 'shuffle',
         repeat: 'repeat',
+        'keyboard-arrow-down': 'keyboard-arrow-down',
+        'expand-more': 'expand-more',
+        'playlist-add': 'playlist-add',
+        lyrics: 'lyrics',
+        devices: 'devices',
+        'spatial-audio': 'spatial-audio',
+        'arrow-forward': 'arrow-forward',
+        verified: 'verified',
+        headphones: 'headphones',
+        speaker: 'speaker',
+        smartphone: 'smartphone',
       };
-      const materialName = iconMap[name] || 'circle';
+      const materialName = iconMap[name] || (name.includes('arrow-down') ? 'keyboard-arrow-down' : 'circle');
       return <MaterialIcons name={materialName as any} size={size} color={color} />;
     }
   } catch (_) {}
@@ -237,6 +277,23 @@ export const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff' }
         <View style={{ width: 2.5, height: size * 0.55, backgroundColor: color, borderRadius: 1 }} />
         <View style={{ width: 2.5, height: size * 0.35, backgroundColor: color, borderRadius: 1 }} />
       </View>
+    );
+  }
+
+  // Chevron Down geometric fallback
+  if (name === 'keyboard-arrow-down' || name === 'expand-more') {
+    return (
+      <View
+        style={{
+          width: size * 0.5,
+          height: size * 0.5,
+          borderRightWidth: 2.5,
+          borderBottomWidth: 2.5,
+          borderColor: color,
+          transform: [{ rotate: '45deg' }],
+          marginBottom: size * 0.15,
+        }}
+      />
     );
   }
 

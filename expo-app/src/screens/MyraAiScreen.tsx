@@ -7,6 +7,8 @@ import {
   TextInput,
   ScrollView,
   Keyboard,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
@@ -499,7 +501,7 @@ export const MyraAiScreen: React.FC = () => {
                 <Icon name="mic" size={16} color="#4cd7f6" />
                 <Text style={styles.promptCardText}>"{prompt}"</Text>
               </View>
-              <Icon name="play-arrow" size={14} color="#8e92a4" />
+              <Icon name="arrow-forward" size={16} color="#8e92a4" />
             </TouchableOpacity>
           ))}
         </View>
@@ -514,7 +516,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131a',
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 10 : 16,
     paddingBottom: 40,
   },
   topHeader: {
@@ -597,16 +600,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#191b23',
     borderRadius: 24,
     padding: 18,
-    borderWidth: 1,
-    borderColor: '#272a32',
+    borderWidth: 1.5,
+    borderColor: 'rgba(76, 215, 246, 0.45)',
     alignItems: 'center',
     gap: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
   },
   statusChip: {
     flexDirection: 'row',

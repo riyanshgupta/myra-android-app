@@ -8,24 +8,17 @@ import { ApiResponse } from '../types/music';
  * Checks if already granted first to avoid prompting every time.
  */
 export async function requestMicrophonePermission(): Promise<boolean> {
-  try {
-    const cached = await AsyncStorage.getItem('myra_mic_granted');
-    if (cached === 'true') {
-      return true;
-    }
-  } catch (_) {}
-
   if (Platform.OS === 'android') {
     try {
-      const alreadyGranted = await PermissionsAndroid.check(
+      const isGranted = await PermissionsAndroid.check(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
       );
-      if (alreadyGranted) {
-        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
+      if (isGranted) {
+        await AsyncStorage.setItem('myra_mic_granted', 'true');
         return true;
       }
 
-      const granted = await PermissionsAndroid.request(
+      const status = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         {
           title: 'Myra Voice Assistant Microphone Access',
@@ -37,11 +30,9 @@ export async function requestMicrophonePermission(): Promise<boolean> {
         }
       );
 
-      const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
-      if (isGranted) {
-        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
-      }
-      return isGranted;
+      const granted = status === PermissionsAndroid.RESULTS.GRANTED;
+      await AsyncStorage.setItem('myra_mic_granted', granted ? 'true' : 'false');
+      return granted;
     } catch (err) {
       console.warn('Android Permissions error:', err);
     }
@@ -50,32 +41,27 @@ export async function requestMicrophonePermission(): Promise<boolean> {
   // Secondary check via expo-audio permission bridge if available
   try {
     const { requestRecordingPermissionsAsync } = require('expo-audio');
-    if (requestRecordingPermissionsAsync) {
+    if (typeof requestRecordingPermissionsAsync === 'function') {
       const res = await requestRecordingPermissionsAsync();
-      if (res && res.granted) {
-        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
-        return true;
-      }
+      const granted = Boolean(res && res.granted);
+      await AsyncStorage.setItem('myra_mic_granted', granted ? 'true' : 'false');
+      return granted;
     }
   } catch (_) {}
 
-  return true;
+  return false;
 }
 
 export async function checkMicrophonePermission(): Promise<boolean> {
-  const cached = await AsyncStorage.getItem('myra_mic_granted');
-  if (cached === 'true') return true;
-
   if (Platform.OS === 'android') {
     try {
       const has = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-      if (has) {
-        AsyncStorage.setItem('myra_mic_granted', 'true').catch(() => {});
-        return true;
-      }
+      await AsyncStorage.setItem('myra_mic_granted', has ? 'true' : 'false');
+      return has;
     } catch (_) {}
   }
-  return false;
+  const cached = await AsyncStorage.getItem('myra_mic_granted');
+  return cached === 'true';
 }
 
 /**
