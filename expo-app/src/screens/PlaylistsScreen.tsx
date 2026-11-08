@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,28 +12,23 @@ import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
 import { Track } from '../types/music';
 
-export const PlaylistsScreen: React.FC = () => {
-  const {
-    queue,
-    playTrack,
-    currentTrack,
-    isPlaying,
-    trendingTracks,
-    likedTracks,
-    loadMoreQueue,
-    isLoadingMoreQueue,
-  } = usePlayer();
-
-  const [activeTab, setActiveTab] = useState<'queue' | 'favorites'>('queue');
-
-  const favoriteTracks = trendingTracks.filter((t) => likedTracks[t.id]);
-
-  const renderQueueItem = ({ item, index }: { item: Track; index: number }) => {
-    const isThisPlaying = currentTrack?.id === item.id && isPlaying;
+// Memoized Queue Item to eliminate VirtualizedList slow update warnings
+const QueueItem = React.memo(
+  ({
+    item,
+    index,
+    isThisPlaying,
+    onPress,
+  }: {
+    item: Track;
+    index: number;
+    isThisPlaying: boolean;
+    onPress: () => void;
+  }) => {
     return (
       <TouchableOpacity
         style={[styles.card, isThisPlaying && styles.cardActive]}
-        onPress={() => playTrack(item, { keepCurrentQueue: true })}
+        onPress={onPress}
         activeOpacity={0.8}
       >
         <Text style={[styles.index, isThisPlaying && styles.indexActive]}>
@@ -60,14 +55,88 @@ export const PlaylistsScreen: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  };
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.isThisPlaying === nextProps.isThisPlaying &&
+      prevProps.index === nextProps.index
+    );
+  }
+);
+
+export const PlaylistsScreen: React.FC = () => {
+  const {
+    queue,
+    playTrack,
+    currentTrack,
+    isPlaying,
+    trendingTracks,
+    likedTracks,
+    loadMoreQueue,
+    isLoadingMoreQueue,
+  } = usePlayer();
+
+  const [activeTab, setActiveTab] = useState<'queue' | 'favorites'>('queue');
+
+  const favoriteTracks = trendingTracks.filter((t) => likedTracks[t.id]);
+
+  const handleTrackPress = useCallback(
+    (track: Track) => {
+      playTrack(track, { keepCurrentQueue: true });
+    },
+    [playTrack]
+  );
+
+  const renderQueueItem = useCallback(
+    ({ item, index }: { item: Track; index: number }) => {
+      const isThisPlaying = currentTrack?.id === item.id && isPlaying;
+      return (
+        <QueueItem
+          item={item}
+          index={index}
+          isThisPlaying={isThisPlaying}
+          onPress={() => handleTrackPress(item)}
+        />
+      );
+    },
+    [currentTrack?.id, isPlaying, handleTrackPress]
+  );
+
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: 68,
+      offset: 68 * index,
+      index,
+    }),
+    []
+  );
+
+  const handleEndReached = useCallback(() => {
+    if (!isLoadingMoreQueue) {
+      loadMoreQueue();
+    }
+  }, [isLoadingMoreQueue, loadMoreQueue]);
 
   const renderFooter = () => {
-    if (!isLoadingMoreQueue) return <View style={styles.listFooterPadding} />;
+    if (isLoadingMoreQueue) {
+      return (
+        <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color="#4cd7f6" />
+          <Text style={styles.footerLoaderText}>Fetching next page of lossless tracks...</Text>
+        </View>
+      );
+    }
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#4cd7f6" />
-        <Text style={styles.footerLoaderText}>Loading next page of tracks...</Text>
+      <View style={styles.footerActionRow}>
+        <TouchableOpacity
+          style={styles.loadMoreManualBtn}
+          onPress={loadMoreQueue}
+          activeOpacity={0.8}
+        >
+          <Icon name="auto-awesome" size={14} color="#4cd7f6" />
+          <Text style={styles.loadMoreManualText}>Load More Songs</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -77,7 +146,7 @@ export const PlaylistsScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Your Library</Text>
-        <Text style={styles.subtitle}>Saved Tracks & Dynamic Playback Queue</Text>
+        <Text style={styles.subtitle}>Saved Tracks & Infinite Playback Queue</Text>
 
         {/* Tab Toggle */}
         <View style={styles.tabRow}>
@@ -121,12 +190,17 @@ export const PlaylistsScreen: React.FC = () => {
       {activeTab === 'queue' ? (
         <FlatList
           data={queue}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
+          keyExtractor={(item) => item.id}
           renderItem={renderQueueItem}
+          getItemLayout={getItemLayout}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          onEndReached={loadMoreQueue}
-          onEndReachedThreshold={0.5}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.25}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -139,6 +213,11 @@ export const PlaylistsScreen: React.FC = () => {
           data={favoriteTracks}
           keyExtractor={(item) => `fav-${item.id}`}
           renderItem={renderQueueItem}
+          getItemLayout={getItemLayout}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -204,7 +283,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 36,
+    paddingBottom: 50,
   },
   card: {
     flexDirection: 'row',
@@ -213,6 +292,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 10,
     marginBottom: 8,
+    height: 64,
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -288,7 +368,24 @@ const styles = StyleSheet.create({
     color: '#4cd7f6',
     fontWeight: '600',
   },
-  listFooterPadding: {
-    height: 20,
+  footerActionRow: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  loadMoreManualBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1d1f27',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.3)',
+  },
+  loadMoreManualText: {
+    fontSize: 12,
+    color: '#4cd7f6',
+    fontWeight: '700',
   },
 });

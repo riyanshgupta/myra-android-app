@@ -1,17 +1,17 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   Image,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
+  Animated,
+  Easing,
+  ScrollView,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
-
-const { width } = Dimensions.get('window');
-const ARTWORK_SIZE = Math.min(width - 56, 310);
 
 export const PlayerScreen: React.FC = () => {
   const {
@@ -29,6 +29,54 @@ export const PlayerScreen: React.FC = () => {
     executeVoiceCommand,
     requestMicPermission,
   } = usePlayer();
+
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
+  // Animations: Spinning record, pulse glow, and entry scale
+  const spinValue = useRef(new Animated.Value(0)).current;
+  const pulseValue = useRef(new Animated.Value(1)).current;
+  const spinLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      spinLoopRef.current = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 16000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      spinLoopRef.current.start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseValue, {
+            toValue: 1.05,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseValue, {
+            toValue: 1,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      if (spinLoopRef.current) {
+        spinLoopRef.current.stop();
+      }
+    }
+  }, [isPlaying]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   if (!currentTrack) {
     return (
@@ -62,7 +110,7 @@ export const PlayerScreen: React.FC = () => {
 
   const handleProgressBarPress = (e: any) => {
     const { locationX } = e.nativeEvent;
-    const barWidth = width - 48;
+    const barWidth = isLandscape ? width * 0.45 : width - 48;
     const ratio = Math.max(0, Math.min(1, locationX / barWidth));
     seekTo(ratio * duration);
   };
@@ -82,11 +130,14 @@ export const PlayerScreen: React.FC = () => {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Dynamic Ambient Background Glow */}
-      <View style={styles.glowTop} />
+  const artworkSize = isLandscape ? Math.min(height - 120, 260) : Math.min(width - 64, 320);
 
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, isLandscape && styles.contentLandscape]}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Top Header Strip */}
       <View style={styles.headerStrip}>
         <TouchableOpacity
@@ -94,14 +145,14 @@ export const PlayerScreen: React.FC = () => {
           onPress={() => setActiveScreen('home')}
           activeOpacity={0.7}
         >
-          <Icon name="arrow-back" size={20} color="#e1e2ec" />
+          <Icon name="keyboard-arrow-down" size={24} color="#e1e2ec" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerCaption}>NOW PLAYING</Text>
           <View style={styles.atmosPill}>
             <View style={styles.atmosDot} />
-            <Text style={styles.atmosText}>Dolby Atmos</Text>
+            <Text style={styles.atmosText}>Dolby Atmos 24-bit</Text>
           </View>
         </View>
 
@@ -114,114 +165,139 @@ export const PlayerScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Album Artwork Card */}
-      <View style={styles.artworkContainer}>
-        <Image source={{ uri: currentTrack.coverUrl }} style={styles.artwork} />
+      {/* Main Player Body: Row in Landscape, Column in Portrait */}
+      <View style={[styles.mainBody, isLandscape && styles.mainBodyLandscape]}>
+        {/* Left / Top: Animated Artwork */}
+        <View style={[styles.artworkContainer, isLandscape && styles.artworkContainerLandscape]}>
+          <Animated.View
+            style={[
+              styles.artworkGlow,
+              {
+                width: artworkSize + 30,
+                height: artworkSize + 30,
+                borderRadius: (artworkSize + 30) / 2,
+                transform: [{ scale: pulseValue }],
+              },
+            ]}
+          />
 
-        {/* Live Frequency visualizer overlay at bottom of cover */}
-        <View style={styles.waveformOverlay}>
-          {[4, 8, 5, 10, 6, 9, 4, 8, 6, 7].map((h, i) => (
-            <View
-              key={i}
-              style={[
-                styles.waveBar,
-                {
-                  height: isPlaying ? h * 2 : 4,
-                  backgroundColor: i % 2 === 0 ? '#4cd7f6' : '#a078ff',
-                },
-              ]}
+          <View
+            style={[
+              styles.artworkWrapper,
+              { width: artworkSize, height: artworkSize, borderRadius: 24 },
+            ]}
+          >
+            <Image
+              source={{ uri: currentTrack.coverUrl }}
+              style={[styles.artwork, { width: artworkSize, height: artworkSize }]}
             />
-          ))}
-        </View>
-      </View>
 
-      {/* Track Metadata & Favorite Button */}
-      <View style={styles.infoRow}>
-        <View style={styles.infoTextCol}>
-          <Text style={styles.title} numberOfLines={1}>
-            {currentTrack.title}
-          </Text>
-          <Text style={styles.artist} numberOfLines={1}>
-            {currentTrack.artist} • {currentTrack.album}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.likeBtn}
-          onPress={() => toggleLike(currentTrack)}
-          activeOpacity={0.7}
-        >
-          <Icon
-            name={isLiked ? 'favorite' : 'favorite-border'}
-            size={22}
-            color={isLiked ? '#4cd7f6' : '#cbc3d7'}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Interactive Progress Bar */}
-      <View style={styles.scrubberSection}>
-        <TouchableOpacity
-          style={styles.scrubTouchable}
-          onPress={handleProgressBarPress}
-          activeOpacity={0.9}
-        >
-          <View style={styles.progressBackground}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-            <View style={[styles.scrubberThumb, { left: `${progressPercent}%` }]} />
+            {/* Live Frequency visualizer overlay at bottom of cover */}
+            <View style={styles.waveformOverlay}>
+              {[4, 9, 6, 12, 7, 11, 5, 10, 8, 9, 6, 11].map((h, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.waveBar,
+                    {
+                      height: isPlaying ? h * 2.2 : 4,
+                      backgroundColor: i % 2 === 0 ? '#4cd7f6' : '#a078ff',
+                    },
+                  ]}
+                />
+              ))}
+            </View>
           </View>
-        </TouchableOpacity>
+        </View>
 
-        <View style={styles.timeLabelsRow}>
-          <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-          <Text style={styles.timeText}>{formatTime(duration)}</Text>
+        {/* Right / Bottom: Metadata, Scrubber & Controls */}
+        <View style={[styles.controlsColumn, isLandscape && styles.controlsColumnLandscape]}>
+          {/* Track Metadata & Favorite Button */}
+          <View style={styles.infoRow}>
+            <View style={styles.infoTextCol}>
+              <Text style={styles.trackTitle} numberOfLines={1}>
+                {currentTrack.title}
+              </Text>
+              <Text style={styles.trackArtist} numberOfLines={1}>
+                {currentTrack.artist} • {currentTrack.album}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.likeBtn}
+              onPress={() => toggleLike(currentTrack)}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name={isLiked ? 'favorite' : 'favorite-border'}
+                size={22}
+                color={isLiked ? '#4cd7f6' : '#8e92a4'}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Interactive Progress Bar Scrubber */}
+          <View style={styles.scrubberContainer}>
+            <TouchableOpacity
+              style={styles.trackBackground}
+              onPress={handleProgressBarPress}
+              activeOpacity={0.9}
+            >
+              <View style={[styles.trackFill, { width: `${progressPercent}%` }]} />
+              <View style={[styles.thumb, { left: `${Math.max(0, Math.min(97, progressPercent))}%` }]} />
+            </TouchableOpacity>
+
+            <View style={styles.timeRow}>
+              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
+          </View>
+
+          {/* Main Playback Control Bar */}
+          <View style={styles.controlsRow}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={replay10} activeOpacity={0.7}>
+              <Icon name="replay-10" size={22} color="#cbc3d7" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.skipBtn} onPress={prevTrack} activeOpacity={0.7}>
+              <Icon name="skip-previous" size={28} color="#ffffff" />
+            </TouchableOpacity>
+
+            {/* Glowing Big Play/Pause Action Button */}
+            <TouchableOpacity style={styles.playPauseBtn} onPress={togglePlay} activeOpacity={0.8}>
+              <Icon
+                name={isPlaying ? 'pause' : 'play-arrow'}
+                size={34}
+                color="#0b0e17"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.skipBtn} onPress={nextTrack} activeOpacity={0.7}>
+              <Icon name="skip-next" size={28} color="#ffffff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.secondaryBtn} onPress={forward10} activeOpacity={0.7}>
+              <Icon name="forward-10" size={22} color="#cbc3d7" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Voice Recommendations Action Pill */}
+          <TouchableOpacity
+            style={styles.voiceAssistantPill}
+            onPress={handleAskMyraQueue}
+            activeOpacity={0.8}
+          >
+            <View style={styles.voiceAssistantLeft}>
+              <Icon name="graphic-eq" size={16} color="#a078ff" />
+              <Text style={styles.voiceAssistantText}>
+                Ask Myra: "Queue similar tracks"
+              </Text>
+            </View>
+            <Icon name="play-arrow" size={14} color="#a078ff" />
+          </TouchableOpacity>
         </View>
       </View>
-
-      {/* Main Playback Controls Row */}
-      <View style={styles.controlsRow}>
-        {/* Replay 10s */}
-        <TouchableOpacity style={styles.secondaryCtrl} onPress={replay10} activeOpacity={0.7}>
-          <Icon name="replay-10" size={22} color="#cbc3d7" />
-        </TouchableOpacity>
-
-        {/* Previous */}
-        <TouchableOpacity style={styles.primaryCtrl} onPress={prevTrack} activeOpacity={0.7}>
-          <Icon name="skip-previous" size={28} color="#e1e2ec" />
-        </TouchableOpacity>
-
-        {/* Play / Pause Giant Button */}
-        <TouchableOpacity style={styles.playPauseBtn} onPress={togglePlay} activeOpacity={0.8}>
-          <Icon
-            name={isPlaying ? 'pause' : 'play-arrow'}
-            size={34}
-            color="#0b0e17"
-          />
-        </TouchableOpacity>
-
-        {/* Next */}
-        <TouchableOpacity style={styles.primaryCtrl} onPress={nextTrack} activeOpacity={0.7}>
-          <Icon name="skip-next" size={28} color="#e1e2ec" />
-        </TouchableOpacity>
-
-        {/* Forward 10s */}
-        <TouchableOpacity style={styles.secondaryCtrl} onPress={forward10} activeOpacity={0.7}>
-          <Icon name="forward-10" size={22} color="#cbc3d7" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Bottom Telemetry Audio Mode */}
-      <View style={styles.bottomTelemetryRow}>
-        <TouchableOpacity
-          style={styles.telemetryTag}
-          onPress={handleAskMyraQueue}
-          activeOpacity={0.8}
-        >
-          <Icon name="mic" size={14} color="#4cd7f6" />
-          <Text style={styles.telemetryTagText}>Ask Myra to Queue Related</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -229,70 +305,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#10131a',
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingBottom: 24,
   },
-  glowTop: {
-    position: 'absolute',
-    top: -20,
-    left: '20%',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(76, 215, 246, 0.08)',
-  },
-  emptyContainer: {
-    flex: 1,
-    backgroundColor: '#10131a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#1d1f27',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#272a32',
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#e1e2ec',
-    marginBottom: 8,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#cbc3d7',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  browseBtn: {
-    backgroundColor: '#4cd7f6',
+  content: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
-  browseBtnText: {
-    color: '#0b0e17',
-    fontSize: 13,
-    fontWeight: '800',
+  contentLandscape: {
+    paddingHorizontal: 28,
+    paddingTop: 8,
   },
   headerStrip: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 8,
+    marginBottom: 8,
   },
   headerIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#1d1f27',
     alignItems: 'center',
     justifyContent: 'center',
@@ -301,18 +334,24 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     alignItems: 'center',
+    gap: 3,
   },
   headerCaption: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#cbc3d7',
+    color: '#8e92a4',
     letterSpacing: 1.5,
   },
   atmosPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.3)',
   },
   atmosDot: {
     width: 5,
@@ -322,36 +361,57 @@ const styles = StyleSheet.create({
   },
   atmosText: {
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#4cd7f6',
   },
+  mainBody: {
+    alignItems: 'center',
+    gap: 20,
+  },
+  mainBodyLandscape: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 32,
+    marginTop: 8,
+  },
   artworkContainer: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
-    alignSelf: 'center',
-    borderRadius: 24,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 215, 246, 0.25)',
+    marginVertical: 12,
+  },
+  artworkContainerLandscape: {
+    marginVertical: 0,
+  },
+  artworkGlow: {
+    position: 'absolute',
+    backgroundColor: 'rgba(76, 215, 246, 0.08)',
     shadowColor: '#4cd7f6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 28,
+  },
+  artworkWrapper: {
+    borderRadius: 24,
+    overflow: 'hidden',
     backgroundColor: '#1d1f27',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 12,
   },
   artwork: {
-    width: '100%',
-    height: '100%',
+    borderRadius: 24,
   },
   waveformOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 32,
-    backgroundColor: 'rgba(16, 19, 26, 0.8)',
+    height: 38,
+    backgroundColor: 'rgba(11, 14, 23, 0.8)',
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
@@ -359,29 +419,39 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   waveBar: {
-    width: 4,
+    width: 3.5,
     borderRadius: 2,
+  },
+  controlsColumn: {
+    width: '100%',
+    gap: 16,
+  },
+  controlsColumnLandscape: {
+    flex: 1,
+    maxWidth: 440,
+    gap: 12,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
+    width: '100%',
   },
   infoTextCol: {
     flex: 1,
     marginRight: 16,
   },
-  title: {
+  trackTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#e1e2ec',
+    color: '#ffffff',
+    letterSpacing: -0.3,
   },
-  artist: {
+  trackArtist: {
     fontSize: 13,
-    color: '#4cd7f6',
+    color: '#cbc3d7',
     marginTop: 3,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   likeBtn: {
     width: 44,
@@ -393,60 +463,66 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#272a32',
   },
-  scrubberSection: {
+  scrubberContainer: {
     width: '100%',
+    gap: 6,
   },
-  scrubTouchable: {
-    height: 24,
+  trackBackground: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#272a32',
+    position: 'relative',
     justifyContent: 'center',
   },
-  progressBackground: {
-    height: 6,
-    backgroundColor: '#272a32',
-    borderRadius: 3,
-    position: 'relative',
-  },
-  progressFill: {
+  trackFill: {
     height: '100%',
-    backgroundColor: '#4cd7f6',
     borderRadius: 3,
+    backgroundColor: '#4cd7f6',
   },
-  scrubberThumb: {
+  thumb: {
     position: 'absolute',
-    top: -4,
     width: 14,
     height: 14,
     borderRadius: 7,
     backgroundColor: '#ffffff',
-    marginLeft: -7,
-    shadowColor: '#000',
+    shadowColor: '#4cd7f6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
     elevation: 4,
+    marginLeft: -7,
   },
-  timeLabelsRow: {
+  timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 2,
   },
   timeText: {
     fontSize: 11,
-    color: '#cbc3d7',
+    color: '#8e92a4',
     fontFamily: 'monospace',
     fontWeight: '600',
   },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 8,
+    marginVertical: 4,
+  },
+  secondaryBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
   },
-  secondaryCtrl: {
-    padding: 8,
-  },
-  primaryCtrl: {
-    padding: 8,
+  skipBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playPauseBtn: {
     width: 68,
@@ -457,27 +533,69 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#4cd7f6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  bottomTelemetryRow: {
-    alignItems: 'center',
-  },
-  telemetryTag: {
+  voiceAssistantPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1d1f27',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
     borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.25)',
+    borderColor: 'rgba(160, 120, 255, 0.3)',
+    marginTop: 6,
   },
-  telemetryTagText: {
-    fontSize: 11,
+  voiceAssistantLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  voiceAssistantText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#4cd7f6',
+    color: '#d0bcff',
+  },
+  emptyContainer: {
+    flex: 1,
+    backgroundColor: '#10131a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#1d1f27',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#e1e2ec',
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: '#cbc3d7',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  browseBtn: {
+    backgroundColor: '#a078ff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 18,
+  },
+  browseBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

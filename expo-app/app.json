@@ -3,7 +3,7 @@
     "name": "Myra Music AI",
     "slug": "myra-android-app",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#10131a",
     "ios": {
@@ -16,9 +16,20 @@
         "MODIFY_AUDIO_SETTINGS",
         "WAKE_LOCK",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "POST_NOTIFICATIONS"
       ],
       "package": "com.myra.music.ai"
-    }
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Myra to access your microphone for voice commands.",
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
+      ]
+    ]
   }
 }

@@ -14,11 +14,15 @@ import {
   removeFavoriteTrackApi,
   searchMusicApi,
 } from '../services/api';
+import { updatePlaybackNotification, clearPlaybackNotification } from '../services/notificationService';
 import {
   requestMicrophonePermission,
   checkMicrophonePermission,
   processVoiceCommand,
 } from '../services/voiceAssistant';
+
+const DISCOVERY_PAGES = ['top hits', 'bollywood hits', 'punjabi', 'arijit singh', 'lo-fi beats', 'synthwave'];
+let discoveryIdx = 0;
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -263,7 +267,16 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoadingMoreQueue(true);
     try {
       const offset = queueOffsetRef.current;
-      const moreTracks = await getTrendingApi(offset, 20);
+      let moreTracks = await getTrendingApi(offset, 20);
+
+      // If trending endpoint returns empty or few tracks, fallback to popular discovery queries
+      if (!moreTracks || moreTracks.length < 5) {
+        const query = DISCOVERY_PAGES[discoveryIdx % DISCOVERY_PAGES.length];
+        discoveryIdx++;
+        const page = Math.floor(offset / 20) + 1;
+        moreTracks = await searchMusicApi(query, page, 20);
+      }
+
       if (moreTracks && moreTracks.length > 0) {
         queueOffsetRef.current = offset + moreTracks.length;
         setQueue((prev) => {
@@ -278,6 +291,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const filtered = moreTracks.filter((t) => !existingIds.has(t.id));
           return [...prev, ...filtered];
         });
+      } else {
+        queueOffsetRef.current = offset + 20;
       }
     } catch (_) {}
     setIsLoadingMoreQueue(false);
@@ -466,6 +481,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       await player.play();
       setIsPlaying(true);
       isPlayingRef.current = true;
+      updatePlaybackNotification(track, true).catch(() => {});
     } catch (err) {
       console.warn('Expo Audio Playback Error:', err);
       setIsPlaying(false);
@@ -483,10 +499,12 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         await playerRef.current.pause();
         setIsPlaying(false);
         isPlayingRef.current = false;
+        updatePlaybackNotification(currentTrackRef.current, false).catch(() => {});
       } else {
         await playerRef.current.play();
         setIsPlaying(true);
         isPlayingRef.current = true;
+        updatePlaybackNotification(currentTrackRef.current, true).catch(() => {});
       }
     } catch (_) {}
   };
@@ -498,6 +516,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } catch (_) {}
       setIsPlaying(false);
       isPlayingRef.current = false;
+      updatePlaybackNotification(currentTrackRef.current, false).catch(() => {});
     }
   };
 

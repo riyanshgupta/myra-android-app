@@ -30,14 +30,63 @@ export const MyraAiScreen: React.FC = () => {
   const [finalTranscript, setFinalTranscript] = useState<string>('');
   const [customText, setCustomText] = useState<string>('');
   const [waveformScale, setWaveformScale] = useState<number[]>(WAVE_BARS.map(() => 15));
+  const [nativeSpeechAvailable, setNativeSpeechAvailable] = useState<boolean>(false);
 
   const waveTimerRef = useRef<any>(null);
   const streamTimerRef = useRef<any>(null);
+  const pauseTimerRef = useRef<any>(null);
   const textInputRef = useRef<TextInput | null>(null);
+  const speechModuleRef = useRef<any>(null);
+  const listenersRef = useRef<any[]>([]);
 
-  // Check microphone permission on screen mount
+  // Initialize native speech recognition module if available
   useEffect(() => {
     let isMounted = true;
+
+    try {
+      const speechMod = require('expo-speech-recognition');
+      if (speechMod && speechMod.ExpoSpeechRecognitionModule) {
+        speechModuleRef.current = speechMod.ExpoSpeechRecognitionModule;
+        if (isMounted) setNativeSpeechAvailable(true);
+
+        const subStart = speechMod.ExpoSpeechRecognitionModule.addListener('start', () => {
+          if (!isMounted) return;
+          setIsRecording(true);
+          setApiStatus('listening');
+          startWaveAnimation();
+        });
+
+        const subResult = speechMod.ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+          if (!isMounted) return;
+          const transcript = event.results?.[0]?.transcript || '';
+          if (transcript) {
+            setLiveCaption(transcript);
+            setApiStatus('listening');
+
+            // Reset pause timer to detect end of speech
+            if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+            pauseTimerRef.current = setTimeout(() => {
+              handleSpeechPauseDetected(transcript);
+            }, 1200);
+          }
+        });
+
+        const subEnd = speechMod.ExpoSpeechRecognitionModule.addListener('end', () => {
+          if (!isMounted) return;
+          stopWaveAnimation();
+        });
+
+        const subError = speechMod.ExpoSpeechRecognitionModule.addListener('error', (err: any) => {
+          console.warn('[Myra Speech] Recognition note:', err);
+        });
+
+        listenersRef.current = [subStart, subResult, subEnd, subError];
+      }
+    } catch (_) {
+      // Speech recognition native module not installed, fallback to keyboard/voice dictation
+    }
+
+    // Auto-request mic on opening screen
     requestMicPermission().then((granted) => {
       if (isMounted && granted) {
         startListening();
@@ -48,6 +97,17 @@ export const MyraAiScreen: React.FC = () => {
       isMounted = false;
       stopWaveAnimation();
       if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      listenersRef.current.forEach((sub) => {
+        try {
+          sub.remove();
+        } catch (_) {}
+      });
+      if (speechModuleRef.current) {
+        try {
+          speechModuleRef.current.stop();
+        } catch (_) {}
+      }
     };
   }, []);
 
@@ -71,19 +131,45 @@ export const MyraAiScreen: React.FC = () => {
     setWaveformScale(WAVE_BARS.map(() => 12));
   };
 
-  const startListening = () => {
+  const startListening = async () => {
     setIsRecording(true);
     setApiStatus('listening');
     setLiveCaption('');
     setFinalTranscript('');
     setApiResponse(null);
     startWaveAnimation();
+
+    if (speechModuleRef.current) {
+      try {
+        const perms = await speechModuleRef.current.requestPermissionsAsync();
+        if (perms && perms.granted) {
+          speechModuleRef.current.start({
+            lang: 'en-US',
+            interimResults: true,
+            continuous: false,
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Native speech start error:', err);
+      }
+    }
+
+    // Fallback: prompt user to use keyboard voice typing or quick prompts
+    if (textInputRef.current) {
+      textInputRef.current.focus();
+    }
   };
 
   const stopListening = () => {
     setIsRecording(false);
     setApiStatus('idle');
     stopWaveAnimation();
+    if (speechModuleRef.current) {
+      try {
+        speechModuleRef.current.stop();
+      } catch (_) {}
+    }
   };
 
   const toggleListening = async () => {
@@ -93,12 +179,23 @@ export const MyraAiScreen: React.FC = () => {
       const granted = await requestMicPermission();
       if (granted) {
         startListening();
-        // Focus input so user can dictate or type immediately
-        if (textInputRef.current) {
-          textInputRef.current.focus();
-        }
       }
     }
+  };
+
+  const handleSpeechPauseDetected = async (spokenText: string) => {
+    if (!spokenText.trim()) return;
+    setApiStatus('pause_detected');
+    stopWaveAnimation();
+
+    setTimeout(async () => {
+      setApiStatus('sending');
+      setFinalTranscript(spokenText);
+      const res = await executeVoiceCommand(spokenText);
+      setApiResponse(res);
+      setApiStatus('completed');
+      setIsRecording(false);
+    }, 1000);
   };
 
   const handleSimulateVoice = (phrase: string) => {
@@ -181,7 +278,9 @@ export const MyraAiScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.headerSub}>
-              Speech-to-Music Copilot & Recommendation Engine
+              {nativeSpeechAvailable
+                ? 'Native Speech-to-Text Active • Speak commands'
+                : 'Live Speech Capture & Recommendation Copilot'}
             </Text>
           </View>
         </View>
@@ -270,7 +369,7 @@ export const MyraAiScreen: React.FC = () => {
               <Text style={styles.liveCaptionText}>"{liveCaption}"</Text>
             ) : isRecording ? (
               <Text style={styles.listeningPlaceholder}>
-                Listening live... speak now or tap any voice command below
+                Listening live... speak now or select any voice command below
               </Text>
             ) : (
               <Text style={styles.idlePlaceholder}>
@@ -460,12 +559,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusBadgeActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  statusBadgeReady: {
     backgroundColor: 'rgba(160, 120, 255, 0.2)',
     borderColor: 'rgba(160, 120, 255, 0.4)',
+  },
+  statusBadgeReady: {
+    backgroundColor: 'rgba(76, 215, 246, 0.2)',
+    borderColor: 'rgba(76, 215, 246, 0.4)',
   },
   statusBadgeText: {
     fontSize: 10,
@@ -473,10 +572,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   statusBadgeTextActive: {
-    color: '#10b981',
+    color: '#d0bcff',
   },
   statusBadgeTextReady: {
-    color: '#d0bcff',
+    color: '#4cd7f6',
   },
   headerSub: {
     fontSize: 11,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   StatusBar,
@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
+  Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { PlayerProvider, usePlayer } from './src/context/PlayerContext';
 import { TopBar } from './src/components/TopBar';
@@ -28,6 +30,30 @@ const AppContent: React.FC = () => {
     voiceToast,
     dismissVoiceToast,
   } = usePlayer();
+
+  const { height } = useWindowDimensions();
+
+  // Slide Animation for Full Player Screen Overlay (like Spotify / Apple Music)
+  const slideAnim = useRef(new Animated.Value(height)).current;
+  const isPlayerOpen = activeScreen === 'player';
+
+  useEffect(() => {
+    if (isPlayerOpen) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        damping: 24,
+        mass: 0.9,
+        stiffness: 180,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isPlayerOpen, height]);
 
   // 1. Loading splash while initializing AsyncStorage and stored auth
   if (isAuthChecking) {
@@ -54,15 +80,13 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 3. Authenticated: Render full application with TopBar, Active Screen, MiniPlayer, and Elevated Navbar
-  const renderScreen = () => {
+  // 3. Authenticated: Render tab screen
+  const renderTabScreen = () => {
     switch (activeScreen) {
       case 'home':
         return <HomeScreen />;
       case 'search':
         return <SearchScreen />;
-      case 'player':
-        return <PlayerScreen />;
       case 'playlists':
         return <PlaylistsScreen />;
       case 'myra-ai':
@@ -71,8 +95,6 @@ const AppContent: React.FC = () => {
         return <HomeScreen />;
     }
   };
-
-  const isPlayerScreen = activeScreen === 'player';
 
   return (
     <View style={styles.safeArea}>
@@ -91,17 +113,30 @@ const AppContent: React.FC = () => {
         </View>
       )}
 
-      {/* Top Bar for Mobile */}
-      {!isPlayerScreen && <TopBar />}
+      {/* Top Header Bar */}
+      <TopBar />
 
-      {/* Main Screen Content Viewport */}
-      <View style={styles.screenContainer}>{renderScreen()}</View>
+      {/* Main Tab Viewport */}
+      <View style={styles.screenContainer}>{renderTabScreen()}</View>
 
-      {/* Bottom Mini Player (Visible when not on full Player screen) */}
-      {!isPlayerScreen && <MiniPlayer />}
+      {/* Persistent Mini Player at bottom */}
+      <MiniPlayer />
 
-      {/* Bottom Navigation Bar (Elevated above Android hardware/gesture nav bar) */}
+      {/* Bottom Navigation Bar */}
       <MobileNavbar />
+
+      {/* Full-Screen Animated Player Slide-Up Modal */}
+      <Animated.View
+        pointerEvents={isPlayerOpen ? 'auto' : 'none'}
+        style={[
+          styles.playerModal,
+          {
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <PlayerScreen />
+      </Animated.View>
     </View>
   );
 };
@@ -123,6 +158,15 @@ const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: '#10131a',
+  },
+  playerModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#10131a',
+    zIndex: 1000,
   },
   voiceToast: {
     position: 'absolute',
