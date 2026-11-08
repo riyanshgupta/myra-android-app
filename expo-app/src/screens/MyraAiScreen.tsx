@@ -9,15 +9,32 @@ import {
   ScrollView,
 } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
-import { sendVoiceAssistantApi } from '../services/api';
 import { Icon } from '../components/Icon';
 
 export const MyraAiScreen: React.FC = () => {
-  const { playTrack, pauseTrack, nextTrack, prevTrack, queue } = usePlayer();
+  const {
+    isMicGranted,
+    requestMicPermission,
+    executeVoiceCommand,
+  } = usePlayer();
+
   const [customText, setCustomText] = useState<string>('');
-  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+  const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'done'>('idle');
   const [responseMsg, setResponseMsg] = useState<string>('');
   const [lastPrompt, setLastPrompt] = useState<string>('');
+
+  const handleOrbPress = async () => {
+    // 1. Check or request microphone permission
+    const granted = await requestMicPermission();
+    if (!granted) {
+      setStatus('idle');
+      return;
+    }
+
+    // 2. Start listening mode
+    setStatus('listening');
+    setResponseMsg('Listening to your voice command... Speak now or tap a suggestion below.');
+  };
 
   const handlePrompt = async (promptText: string) => {
     if (!promptText.trim()) return;
@@ -26,26 +43,10 @@ export const MyraAiScreen: React.FC = () => {
     setResponseMsg('');
 
     try {
-      const res = await sendVoiceAssistantApi(promptText);
+      const res = await executeVoiceCommand(promptText);
       setStatus('done');
       const speech = res.responseSpeech || res.message || 'Executing your request.';
       setResponseMsg(speech);
-
-      // Perform local client actions based on returned action intent
-      if (res.action === 'play_track' && res.suggestedTrackId) {
-        const match = queue.find((t) => t.id === res.suggestedTrackId);
-        if (match) playTrack(match);
-      } else if (res.action === 'pause') {
-        pauseTrack();
-      } else if (res.action === 'next') {
-        nextTrack();
-      } else if (res.action === 'prev') {
-        prevTrack();
-      } else if (promptText.toLowerCase().includes('pause') || promptText.toLowerCase().includes('stop')) {
-        pauseTrack();
-      } else if (promptText.toLowerCase().includes('next') || promptText.toLowerCase().includes('skip')) {
-        nextTrack();
-      }
     } catch (_) {
       setStatus('done');
       setResponseMsg('Connected to Myra OS. Command acknowledged.');
@@ -69,42 +70,82 @@ export const MyraAiScreen: React.FC = () => {
       {/* Radiant Glowing Voice Assistant Orb */}
       <View style={styles.orbWrapper}>
         <View style={styles.orbGlow} />
-        <View style={styles.orbCenter}>
-          <Icon name="graphic-eq" size={44} color="#ffffff" />
-        </View>
+        <TouchableOpacity
+          style={[styles.orbCenter, status === 'listening' && styles.orbCenterListening]}
+          onPress={handleOrbPress}
+          activeOpacity={0.8}
+        >
+          <Icon name="graphic-eq" size={40} color="#ffffff" />
+        </TouchableOpacity>
         <View style={styles.orbBadge}>
-          <View style={styles.badgeDot} />
+          <View
+            style={[
+              styles.badgeDot,
+              {
+                backgroundColor:
+                  status === 'processing'
+                    ? '#f59e0b'
+                    : status === 'listening'
+                    ? '#10b981'
+                    : '#4cd7f6',
+              },
+            ]}
+          />
           <Text style={styles.badgeText}>
-            {status === 'processing' ? 'PROCESSING' : 'LISTENING'}
+            {status === 'processing'
+              ? 'PROCESSING'
+              : status === 'listening'
+              ? 'LISTENING'
+              : isMicGranted
+              ? 'READY (TAP TO SPEAK)'
+              : 'GRANT MIC ACCESS'}
           </Text>
         </View>
       </View>
+
+      {/* Mic Permission Banner if not yet granted */}
+      {!isMicGranted && (
+        <TouchableOpacity
+          style={styles.micPermissionBanner}
+          onPress={requestMicPermission}
+          activeOpacity={0.8}
+        >
+          <Icon name="mic" size={18} color="#0b0e17" />
+          <Text style={styles.micPermissionBannerText}>
+            Grant Microphone Access for "Hey Myra"
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* Response Box */}
       {status === 'processing' && (
         <View style={styles.statusBox}>
           <ActivityIndicator size="small" color="#4cd7f6" />
-          <Text style={styles.statusBoxText}>Synthesizing voice intent...</Text>
+          <Text style={styles.statusBoxText}>Synthesizing voice intent with Myra AI...</Text>
         </View>
       )}
 
-      {status === 'done' && (
+      {(status === 'done' || status === 'listening') && responseMsg ? (
         <View style={styles.responseCard}>
           <View style={styles.responseHeader}>
             <Icon name="auto-awesome" size={16} color="#4cd7f6" />
-            <Text style={styles.responseSpeaker}>Myra AI Copilot</Text>
+            <Text style={styles.responseSpeaker}>
+              {status === 'listening' ? 'Listening...' : 'Myra AI Copilot'}
+            </Text>
           </View>
           <Text style={styles.responseText}>{responseMsg}</Text>
-          <Text style={styles.responsePrompt}>Prompt: "{lastPrompt}"</Text>
+          {lastPrompt ? (
+            <Text style={styles.responsePrompt}>Command: "{lastPrompt}"</Text>
+          ) : null}
         </View>
-      )}
+      ) : null}
 
       {/* Custom Input Bar */}
       <View style={styles.inputBar}>
         <TextInput
           style={styles.inputField}
           placeholder="Type or speak a music command..."
-          placeholderTextColor="#6b7280"
+          placeholderTextColor="#8e92a4"
           value={customText}
           onChangeText={setCustomText}
           onSubmitEditing={() => {
@@ -118,8 +159,9 @@ export const MyraAiScreen: React.FC = () => {
             handlePrompt(customText);
             setCustomText('');
           }}
+          activeOpacity={0.8}
         >
-          <Icon name="play-arrow" size={18} color="#0b0e17" />
+          <Icon name="play-arrow" size={16} color="#0b0e17" />
         </TouchableOpacity>
       </View>
 
@@ -151,7 +193,7 @@ export const MyraAiScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
   },
   content: {
     padding: 20,
@@ -160,16 +202,16 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   subtitle: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     textAlign: 'center',
     marginTop: 4,
     maxWidth: 280,
@@ -180,20 +222,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   orbGlow: {
     position: 'absolute',
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: 'rgba(76, 215, 246, 0.2)',
+    backgroundColor: 'rgba(76, 215, 246, 0.18)',
   },
   orbCenter: {
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#1b263b',
+    backgroundColor: '#1d1f27',
     borderWidth: 2,
     borderColor: '#4cd7f6',
     alignItems: 'center',
@@ -204,13 +246,18 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
+  orbCenterListening: {
+    borderColor: '#10b981',
+    shadowColor: '#10b981',
+    backgroundColor: '#192620',
+  },
   orbBadge: {
     position: 'absolute',
     bottom: -8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -227,30 +274,49 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     color: '#4cd7f6',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+  },
+  micPermissionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#4cd7f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginBottom: 16,
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  micPermissionBannerText: {
+    color: '#0b0e17',
+    fontSize: 12,
+    fontWeight: '800',
   },
   statusBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(76, 215, 246, 0.2)',
   },
   statusBoxText: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 12,
   },
   responseCard: {
     width: '100%',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(76, 215, 246, 0.3)',
   },
@@ -269,30 +335,30 @@ const styles = StyleSheet.create({
   responseText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#e1e2ec',
     lineHeight: 20,
   },
   responsePrompt: {
     fontSize: 11,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 8,
     fontStyle: 'italic',
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 16,
     paddingHorizontal: 14,
     height: 48,
     width: '100%',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 24,
+    borderColor: '#272a32',
+    marginBottom: 20,
   },
   inputField: {
     flex: 1,
-    color: '#ffffff',
+    color: '#e1e2ec',
     fontSize: 13,
   },
   sendBtn: {
@@ -307,7 +373,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#cad0e0',
+    color: '#cbc3d7',
     alignSelf: 'flex-start',
     marginBottom: 10,
     textTransform: 'uppercase',
@@ -321,14 +387,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: '#272a32',
   },
   promptBtnText: {
-    color: '#ffffff',
+    color: '#e1e2ec',
     fontSize: 13,
     fontWeight: '500',
     flex: 1,

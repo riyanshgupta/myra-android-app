@@ -46,7 +46,7 @@ export const PlaylistsScreen: React.FC = () => {
                 </Text>
               </View>
               <View style={styles.playIcon}>
-                <Icon name="play-arrow" size={16} color="#4cd7f6" />
+                <Icon name="play-arrow" size={14} color="#4cd7f6" />
               </View>
             </TouchableOpacity>
           ))}
@@ -56,7 +56,7 @@ export const PlaylistsScreen: React.FC = () => {
       {/* Playback Queue Section */}
       <View style={styles.section}>
         <View style={styles.sectionTitleRow}>
-          <Icon name="queue-music" size={16} color="#cad0e0" />
+          <Icon name="queue-music" size={16} color="#4cd7f6" />
           <Text style={styles.sectionTitle}>Up Next in Queue ({queue.length})</Text>
         </View>
 
@@ -92,7 +92,7 @@ export const PlaylistsScreen: React.FC = () => {
                 <View style={[styles.playIcon, isThisPlaying && styles.playIconActive]}>
                   <Icon
                     name={isThisPlaying ? 'pause' : 'play-arrow'}
-                    size={16}
+                    size={14}
                     color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
                   />
                 </View>
@@ -108,7 +108,7 @@ export const PlaylistsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
   },
   content: {
     padding: 16,
@@ -120,11 +120,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   subtitle: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
   section: {
@@ -139,12 +139,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     padding: 10,
     marginBottom: 8,
@@ -152,11 +152,11 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   cardActive: {
-    backgroundColor: '#172033',
+    backgroundColor: '#272a32',
     borderColor: 'rgba(76, 215, 246, 0.4)',
   },
   index: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 11,
     fontFamily: 'monospace',
     fontWeight: 'bold',
@@ -167,10 +167,10 @@ const styles = StyleSheet.create({
     color: '#4cd7f6',
   },
   cover: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 8,
-    backgroundColor: '#1e2436',
+    backgroundColor: '#272a32',
     marginLeft: 4,
   },
   info: {
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   trackTitle: {
-    color: '#ffffff',
+    color: '#e1e2ec',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -187,15 +187,15 @@ const styles = StyleSheet.create({
     color: '#4cd7f6',
   },
   trackArtist: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 11,
     marginTop: 2,
   },
   playIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#1b2438',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -204,12 +204,12 @@ const styles = StyleSheet.create({
   },
   emptyBox: {
     padding: 24,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 12,
     alignItems: 'center',
   },
   emptyText: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 12,
   },
 });

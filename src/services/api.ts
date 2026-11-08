@@ -43,7 +43,7 @@ const getEnvBaseUrl = (): string => {
       return import.meta.env.VITE_API_BASE_URL as string;
     }
   } catch (_) {}
-  return 'https://w78gddz2-8000.inc1.devtunnels.ms';
+  return 'https://equivalent-rosabelle-applyfolks-7a547f51.apps.mistral.run'; 
 };
 
 const DEFAULT_BASE_URL = getEnvBaseUrl();

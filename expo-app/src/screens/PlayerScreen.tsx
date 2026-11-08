@@ -11,7 +11,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { Icon } from '../components/Icon';
 
 const { width } = Dimensions.get('window');
-const ARTWORK_SIZE = Math.min(width - 64, 300);
+const ARTWORK_SIZE = Math.min(width - 56, 310);
 
 export const PlayerScreen: React.FC = () => {
   const {
@@ -26,6 +26,8 @@ export const PlayerScreen: React.FC = () => {
     likedTracks,
     toggleLike,
     setActiveScreen,
+    executeVoiceCommand,
+    requestMicPermission,
   } = usePlayer();
 
   if (!currentTrack) {
@@ -60,7 +62,7 @@ export const PlayerScreen: React.FC = () => {
 
   const handleProgressBarPress = (e: any) => {
     const { locationX } = e.nativeEvent;
-    const barWidth = width - 48; // padding is 24 on each side
+    const barWidth = width - 48;
     const ratio = Math.max(0, Math.min(1, locationX / barWidth));
     seekTo(ratio * duration);
   };
@@ -73,6 +75,13 @@ export const PlayerScreen: React.FC = () => {
     seekTo(Math.min(duration, currentTime + 10));
   };
 
+  const handleAskMyraQueue = async () => {
+    await requestMicPermission();
+    if (currentTrack) {
+      await executeVoiceCommand(`Queue songs similar to ${currentTrack.title} by ${currentTrack.artist}`);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Dynamic Ambient Background Glow */}
@@ -81,10 +90,11 @@ export const PlayerScreen: React.FC = () => {
       {/* Top Header Strip */}
       <View style={styles.headerStrip}>
         <TouchableOpacity
-          style={styles.backBtn}
+          style={styles.headerIconBtn}
           onPress={() => setActiveScreen('home')}
+          activeOpacity={0.7}
         >
-          <Icon name="arrow-back" size={20} color="#cad0e0" />
+          <Icon name="arrow-back" size={20} color="#e1e2ec" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -96,10 +106,11 @@ export const PlayerScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          style={styles.queueBtn}
+          style={styles.headerIconBtn}
           onPress={() => setActiveScreen('playlists')}
+          activeOpacity={0.7}
         >
-          <Icon name="queue-music" size={20} color="#cad0e0" />
+          <Icon name="queue-music" size={20} color="#e1e2ec" />
         </TouchableOpacity>
       </View>
 
@@ -138,11 +149,12 @@ export const PlayerScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.likeBtn}
           onPress={() => toggleLike(currentTrack)}
+          activeOpacity={0.7}
         >
           <Icon
             name={isLiked ? 'favorite' : 'favorite-border'}
-            size={24}
-            color={isLiked ? '#4cd7f6' : '#8e92a4'}
+            size={22}
+            color={isLiked ? '#4cd7f6' : '#cbc3d7'}
           />
         </TouchableOpacity>
       </View>
@@ -169,17 +181,17 @@ export const PlayerScreen: React.FC = () => {
       {/* Main Playback Controls Row */}
       <View style={styles.controlsRow}>
         {/* Replay 10s */}
-        <TouchableOpacity style={styles.secondaryCtrl} onPress={replay10}>
-          <Icon name="replay-10" size={22} color="#8e92a4" />
+        <TouchableOpacity style={styles.secondaryCtrl} onPress={replay10} activeOpacity={0.7}>
+          <Icon name="replay-10" size={22} color="#cbc3d7" />
         </TouchableOpacity>
 
         {/* Previous */}
-        <TouchableOpacity style={styles.primaryCtrl} onPress={prevTrack}>
-          <Icon name="skip-previous" size={28} color="#ffffff" />
+        <TouchableOpacity style={styles.primaryCtrl} onPress={prevTrack} activeOpacity={0.7}>
+          <Icon name="skip-previous" size={28} color="#e1e2ec" />
         </TouchableOpacity>
 
         {/* Play / Pause Giant Button */}
-        <TouchableOpacity style={styles.playPauseBtn} onPress={togglePlay}>
+        <TouchableOpacity style={styles.playPauseBtn} onPress={togglePlay} activeOpacity={0.8}>
           <Icon
             name={isPlaying ? 'pause' : 'play-arrow'}
             size={34}
@@ -188,13 +200,13 @@ export const PlayerScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Next */}
-        <TouchableOpacity style={styles.primaryCtrl} onPress={nextTrack}>
-          <Icon name="skip-next" size={28} color="#ffffff" />
+        <TouchableOpacity style={styles.primaryCtrl} onPress={nextTrack} activeOpacity={0.7}>
+          <Icon name="skip-next" size={28} color="#e1e2ec" />
         </TouchableOpacity>
 
         {/* Forward 10s */}
-        <TouchableOpacity style={styles.secondaryCtrl} onPress={forward10}>
-          <Icon name="forward-10" size={22} color="#8e92a4" />
+        <TouchableOpacity style={styles.secondaryCtrl} onPress={forward10} activeOpacity={0.7}>
+          <Icon name="forward-10" size={22} color="#cbc3d7" />
         </TouchableOpacity>
       </View>
 
@@ -202,7 +214,8 @@ export const PlayerScreen: React.FC = () => {
       <View style={styles.bottomTelemetryRow}>
         <TouchableOpacity
           style={styles.telemetryTag}
-          onPress={() => setActiveScreen('myra-ai')}
+          onPress={handleAskMyraQueue}
+          activeOpacity={0.8}
         >
           <Icon name="mic" size={14} color="#4cd7f6" />
           <Text style={styles.telemetryTagText}>Ask Myra to Queue Related</Text>
@@ -215,23 +228,23 @@ export const PlayerScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     paddingBottom: 24,
   },
   glowTop: {
     position: 'absolute',
-    top: 0,
+    top: -20,
     left: '20%',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
     backgroundColor: 'rgba(76, 215, 246, 0.08)',
   },
   emptyContainer: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
@@ -240,20 +253,22 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#1b2234',
+    backgroundColor: '#1d1f27',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#272a32',
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -274,13 +289,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
   },
-  backBtn: {
+  headerIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#272a32',
   },
   headerCenter: {
     alignItems: 'center',
@@ -288,7 +305,7 @@ const styles = StyleSheet.create({
   headerCaption: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#8e92a4',
+    color: '#cbc3d7',
     letterSpacing: 1.5,
   },
   atmosPill: {
@@ -308,14 +325,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#4cd7f6',
   },
-  queueBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#151b2a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   artworkContainer: {
     width: ARTWORK_SIZE,
     height: ARTWORK_SIZE,
@@ -330,7 +339,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 20,
     elevation: 8,
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
   },
   artwork: {
     width: '100%',
@@ -342,7 +351,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 32,
-    backgroundColor: 'rgba(12, 15, 24, 0.75)',
+    backgroundColor: 'rgba(16, 19, 26, 0.8)',
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
@@ -364,9 +373,9 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   title: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   artist: {
     fontSize: 13,
@@ -378,9 +387,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#272a32',
   },
   scrubberSection: {
     width: '100%',
@@ -391,7 +402,7 @@ const styles = StyleSheet.create({
   },
   progressBackground: {
     height: 6,
-    backgroundColor: '#1b2234',
+    backgroundColor: '#272a32',
     borderRadius: 3,
     position: 'relative',
   },
@@ -421,7 +432,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontFamily: 'monospace',
     fontWeight: '600',
   },
@@ -457,12 +468,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.2)',
+    borderColor: 'rgba(76, 215, 246, 0.25)',
   },
   telemetryTagText: {
     fontSize: 11,

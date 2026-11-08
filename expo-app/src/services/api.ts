@@ -12,7 +12,7 @@ import {
   ApiResponse,
 } from '../types/music';
 
-const DEFAULT_BASE_URL = 'https://w78gddz2-8000.inc1.devtunnels.ms';
+const DEFAULT_BASE_URL = 'https://equivalent-rosabelle-applyfolks-7a547f51.apps.mistral.run';
 
 let apiBaseUrl = DEFAULT_BASE_URL;
 let authToken: string | null = null;

@@ -259,7 +259,7 @@ export const AuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
-    backgroundColor: '#0b0e17',
+    backgroundColor: '#10131a',
   },
   scrollContent: {
     flexGrow: 1,
@@ -285,8 +285,8 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: '#1b2234',
-    borderWidth: 1.5,
+    backgroundColor: '#a078ff',
+    borderWidth: 2,
     borderColor: '#4cd7f6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#ffffff',
+    color: '#e1e2ec',
     letterSpacing: -0.5,
   },
   neonDot: {
@@ -328,21 +328,21 @@ const styles = StyleSheet.create({
   },
   brandTagline: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     textAlign: 'center',
     marginTop: 6,
     maxWidth: 280,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#151926',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     padding: 4,
     width: '100%',
     maxWidth: 340,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: '#272a32',
   },
   tabBtn: {
     flex: 1,
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   tabBtnActive: {
-    backgroundColor: '#20283c',
+    backgroundColor: '#272a32',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8e92a4',
+    color: '#cbc3d7',
   },
   tabTextActive: {
     color: '#ffffff',
@@ -369,11 +369,11 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 24,
     padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.15)',
+    borderColor: 'rgba(76, 215, 246, 0.2)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   inputLabel: {
-    color: '#cad0e0',
+    color: '#e1e2ec',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
@@ -415,18 +415,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   pinHint: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 11,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 48,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: '#272a32',
   },
   atPrefix: {
     color: '#4cd7f6',

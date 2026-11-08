@@ -4,7 +4,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { Icon } from './Icon';
 
 export const TopBar: React.FC = () => {
-  const { currentUser, logout, setActiveScreen } = usePlayer();
+  const { currentUser, logout, setActiveScreen, requestMicPermission } = usePlayer();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [profileModalOpen, setProfileModalOpen] = useState<boolean>(false);
 
@@ -24,6 +24,11 @@ export const TopBar: React.FC = () => {
     const interval = setInterval(updateTime, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleMicPress = async () => {
+    await requestMicPermission();
+    setActiveScreen('myra-ai');
+  };
 
   return (
     <>
@@ -51,14 +56,14 @@ export const TopBar: React.FC = () => {
             style={styles.actionIconBtn}
             onPress={() => setActiveScreen('search')}
           >
-            <Icon name="search" size={20} color="#cad0e0" />
+            <Icon name="search" size={18} color="#e1e2ec" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionIconBtn}
-            onPress={() => setActiveScreen('myra-ai')}
+            style={styles.actionMicBtn}
+            onPress={handleMicPress}
           >
-            <Icon name="mic" size={20} color="#4cd7f6" />
+            <Icon name="mic" size={18} color="#4cd7f6" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -134,9 +139,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   brandGroup: {
     flexDirection: 'row',
@@ -147,11 +152,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: '#1b2234',
-    borderWidth: 1,
-    borderColor: '#4cd7f6',
+    backgroundColor: '#a078ff',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#a078ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   brandTitleRow: {
     flexDirection: 'row',
@@ -161,29 +168,33 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   neonDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#4cd7f6',
+    shadowColor: '#4cd7f6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
   telemetryPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: '#272a32',
   },
   telemetryText: {
     fontSize: 11,
     fontFamily: 'monospace',
-    color: '#cad0e0',
+    color: '#e1e2ec',
     fontWeight: '700',
   },
   actionsRow: {
@@ -195,21 +206,33 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#272a32',
+  },
+  actionMicBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#1d1f27',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.4)',
   },
   profileBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#172033',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(76, 215, 246, 0.3)',
-    maxWidth: 90,
+    maxWidth: 96,
   },
   profileText: {
     fontSize: 11,
@@ -226,12 +249,12 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 24,
     padding: 22,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(76, 215, 246, 0.2)',
+    borderColor: 'rgba(76, 215, 246, 0.25)',
   },
   modalHeader: {
     alignItems: 'center',
@@ -241,7 +264,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#1c2438',
+    backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -251,22 +274,24 @@ const styles = StyleSheet.create({
   modalUsername: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   modalRole: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
   modalStatsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 16,
     width: '100%',
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#272a32',
   },
   modalStat: {
     flex: 1,
@@ -275,7 +300,7 @@ const styles = StyleSheet.create({
   modalStatDivider: {
     width: 1,
     height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#272a32',
   },
   modalStatVal: {
     fontSize: 13,
@@ -284,7 +309,7 @@ const styles = StyleSheet.create({
   },
   modalStatLabel: {
     fontSize: 10,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
   logoutBtn: {
@@ -309,7 +334,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   closeBtnText: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 12,
   },
 });

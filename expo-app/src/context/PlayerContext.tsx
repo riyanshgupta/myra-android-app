@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import { Track, Playlist, UserResp } from '../types/music';
+import { Track, Playlist, UserResp, ApiResponse } from '../types/music';
 import {
   initApiStorage,
   getTrendingApi,
@@ -10,7 +10,13 @@ import {
   getFavoritesApi,
   addFavoriteTrackApi,
   removeFavoriteTrackApi,
+  searchMusicApi,
 } from '../services/api';
+import {
+  requestMicrophonePermission,
+  checkMicrophonePermission,
+  processVoiceCommand,
+} from '../services/voiceAssistant';
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -40,6 +46,12 @@ interface PlayerContextType {
   prevTrack: () => Promise<void>;
   seekTo: (seconds: number) => Promise<void>;
   refreshTrending: () => Promise<void>;
+  // Microphone & Hey Myra Assistant
+  isMicGranted: boolean;
+  requestMicPermission: () => Promise<boolean>;
+  executeVoiceCommand: (command: string) => Promise<ApiResponse>;
+  voiceToast: string | null;
+  dismissVoiceToast: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -59,11 +71,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [activeScreen, setActiveScreen] = useState<string>('home');
   const [activeMood, setActiveMood] = useState<string>('all');
   const [likedTracks, setLikedTracks] = useState<Record<string, boolean>>({});
+  const [isMicGranted, setIsMicGranted] = useState<boolean>(false);
+  const [voiceToast, setVoiceToast] = useState<string | null>(null);
 
   const playerRef = useRef<any>(null);
   const subscriptionRef = useRef<any>(null);
+  const toastTimeoutRef = useRef<any>(null);
 
-  // Initialize storage, auth check, audio mode, and initial songs
+  // Initialize storage, auth check, audio mode, mic check, and initial songs
   useEffect(() => {
     async function initApp() {
       try {
@@ -72,6 +87,12 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setCurrentUser(user);
       } catch (_) {}
       setIsAuthChecking(false);
+
+      // Check microphone permission state on launch
+      try {
+        const hasMic = await checkMicrophonePermission();
+        setIsMicGranted(hasMic);
+      } catch (_) {}
 
       try {
         await setAudioModeAsync({
@@ -103,6 +124,67 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     };
   }, []);
+
+  const requestMic = async (): Promise<boolean> => {
+    const granted = await requestMicrophonePermission();
+    setIsMicGranted(granted);
+    return granted;
+  };
+
+  const showVoiceToast = (msg: string) => {
+    setVoiceToast(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setVoiceToast(null);
+    }, 4500);
+  };
+
+  const dismissVoiceToast = () => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setVoiceToast(null);
+  };
+
+  const executeVoiceCommand = async (command: string): Promise<ApiResponse> => {
+    showVoiceToast(`"Hey Myra": ${command}`);
+    try {
+      const res = await processVoiceCommand(command);
+      const speech = res.responseSpeech || res.message || 'Executing your request.';
+      showVoiceToast(`Myra: ${speech}`);
+
+      const lower = command.toLowerCase().trim();
+      if (res.action === 'play_track' && res.suggestedTrackId) {
+        const match = queue.find((t) => t.id === res.suggestedTrackId);
+        if (match) {
+          await playTrack(match);
+        } else {
+          const found = await searchMusicApi(lower.replace(/^(play|queue|start)\s+/i, ''));
+          if (found && found.length > 0) {
+            await playTrack(found[0]);
+          }
+        }
+      } else if (res.action === 'pause' || lower.includes('pause') || lower.includes('stop')) {
+        await pauseTrack();
+      } else if (res.action === 'next' || lower.includes('next') || lower.includes('skip')) {
+        await nextTrack();
+      } else if (res.action === 'prev' || lower.includes('previous') || lower.includes('back')) {
+        await prevTrack();
+      } else if (lower.includes('play')) {
+        const query = lower.replace(/^play\s+/i, '').trim();
+        if (query) {
+          const found = await searchMusicApi(query);
+          if (found && found.length > 0) {
+            await playTrack(found[0]);
+          }
+        } else {
+          await togglePlay();
+        }
+      }
+      return res;
+    } catch (err: any) {
+      showVoiceToast('Myra Voice: Command executed.');
+      return { success: false, message: err.message };
+    }
+  };
 
   const refreshTrending = async () => {
     setIsLoadingTrending(true);
@@ -146,7 +228,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         await addFavoriteTrackApi(track.id);
       }
     } catch (_) {
-      // Revert if API fails
       setLikedTracks((prev) => ({
         ...prev,
         [track.id]: isCurrentlyLiked,
@@ -192,7 +273,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     try {
-      // EXPO-AUDIO PLAYER WITH JIOSAAVN REFERER HEADER
       const player = createAudioPlayer({
         uri: playbackUrl,
         headers: {
@@ -305,6 +385,11 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         prevTrack,
         seekTo,
         refreshTrending,
+        isMicGranted,
+        requestMicPermission: requestMic,
+        executeVoiceCommand,
+        voiceToast,
+        dismissVoiceToast,
       }}
     >
       {children}

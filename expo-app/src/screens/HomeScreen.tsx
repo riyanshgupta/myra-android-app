@@ -32,6 +32,9 @@ export const HomeScreen: React.FC = () => {
     setActiveScreen,
     currentTrack,
     isPlaying,
+    requestMicPermission,
+    executeVoiceCommand,
+    isMicGranted,
   } = usePlayer();
 
   const curatedTracks = trendingTracks.slice(0, 5);
@@ -39,11 +42,19 @@ export const HomeScreen: React.FC = () => {
 
   const getFilteredTracks = () => {
     if (activeMood === 'all') return curatedTracks;
-    // Contextual filter
     return trendingTracks.filter((_, idx) => idx % 2 === 0).slice(0, 5);
   };
 
   const displayedTracks = getFilteredTracks();
+
+  const handleSpeakPress = async () => {
+    await requestMicPermission();
+    setActiveScreen('myra-ai');
+  };
+
+  const handleQuickPrompt = async (prompt: string) => {
+    await executeVoiceCommand(prompt);
+  };
 
   return (
     <ScrollView
@@ -58,7 +69,7 @@ export const HomeScreen: React.FC = () => {
             <Text style={styles.greetingTitle}>
               Good evening{currentUser ? `, @${currentUser.username}` : ''}
             </Text>
-            <Icon name="auto-awesome" size={18} color="#4cd7f6" />
+            <Icon name="auto-awesome" size={20} color="#4cd7f6" />
           </View>
           <Text style={styles.greetingSub}>Myra Intelligent Audio Copilot</Text>
         </View>
@@ -82,7 +93,7 @@ export const HomeScreen: React.FC = () => {
               <Icon
                 name={m.icon}
                 size={14}
-                color={isActive ? '#0b0e17' : '#cad0e0'}
+                color={isActive ? '#0b0e17' : '#cbc3d7'}
               />
               <Text style={[styles.moodText, isActive && styles.moodTextActive]}>
                 {m.name}
@@ -94,6 +105,10 @@ export const HomeScreen: React.FC = () => {
 
       {/* 3. "Hey Myra" Voice Assistant Banner */}
       <View style={styles.aiBanner}>
+        {/* Subtle Ambient glow circles */}
+        <View style={styles.ambientGlowRight} />
+        <View style={styles.ambientGlowLeft} />
+
         <View style={styles.aiBannerTop}>
           <View style={styles.aiBannerTitleRow}>
             <View style={styles.aiIconBadge}>
@@ -106,13 +121,17 @@ export const HomeScreen: React.FC = () => {
                   <Text style={styles.heyBadgeText}>"Hey Myra"</Text>
                 </View>
               </View>
-              <Text style={styles.aiSub}>Tap below or speak to command playback</Text>
+              <Text style={styles.aiSub}>
+                {isMicGranted
+                  ? 'Say "Hey Myra" or tap Speak to command'
+                  : 'Tap Speak to grant microphone & listen'}
+              </Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.askMyraBtn}
-            onPress={() => setActiveScreen('myra-ai')}
+            onPress={handleSpeakPress}
             activeOpacity={0.8}
           >
             <Icon name="mic" size={16} color="#0b0e17" />
@@ -135,7 +154,7 @@ export const HomeScreen: React.FC = () => {
           <Icon name="tune" size={14} color="#8e92a4" />
         </View>
 
-        {/* Quick Prompt Pills */}
+        {/* Quick Context Prompt Pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.promptScroll}>
           {[
             'Play synthwave for highway cruising',
@@ -145,7 +164,8 @@ export const HomeScreen: React.FC = () => {
             <TouchableOpacity
               key={prompt}
               style={styles.promptPill}
-              onPress={() => setActiveScreen('myra-ai')}
+              onPress={() => handleQuickPrompt(prompt)}
+              activeOpacity={0.7}
             >
               <Text style={styles.promptPillText}>"{prompt}"</Text>
             </TouchableOpacity>
@@ -197,7 +217,7 @@ export const HomeScreen: React.FC = () => {
               <View style={[styles.playPill, isThisPlaying && styles.playPillActive]}>
                 <Icon
                   name={isThisPlaying ? 'pause' : 'play-arrow'}
-                  size={16}
+                  size={14}
                   color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
                 />
               </View>
@@ -247,7 +267,7 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
   },
   contentContainer: {
     padding: 16,
@@ -267,12 +287,12 @@ const styles = StyleSheet.create({
   greetingTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
     letterSpacing: -0.3,
   },
   greetingSub: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
   },
   moodsCarousel: {
     flexDirection: 'row',
@@ -283,12 +303,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: '#272a32',
   },
   moodChipActive: {
     backgroundColor: '#4cd7f6',
@@ -297,24 +317,39 @@ const styles = StyleSheet.create({
   moodText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#cad0e0',
+    color: '#cbc3d7',
   },
   moodTextActive: {
     color: '#0b0e17',
     fontWeight: '800',
   },
   aiBanner: {
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(76, 215, 246, 0.25)',
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  ambientGlowRight: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(76, 215, 246, 0.12)',
+  },
+  ambientGlowLeft: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(160, 120, 255, 0.12)',
   },
   aiBannerTop: {
     flexDirection: 'row',
@@ -332,7 +367,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1e2638',
+    backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -346,7 +381,7 @@ const styles = StyleSheet.create({
   aiTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   heyBadge: {
     backgroundColor: 'rgba(76, 215, 246, 0.15)',
@@ -361,7 +396,7 @@ const styles = StyleSheet.create({
   },
   aiSub: {
     fontSize: 11,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
   askMyraBtn: {
@@ -382,13 +417,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#272a32',
   },
   barsContainer: {
     flexDirection: 'row',
@@ -402,7 +437,7 @@ const styles = StyleSheet.create({
   },
   visualizerCaption: {
     fontSize: 11,
-    color: '#cad0e0',
+    color: '#cbc3d7',
     flex: 1,
     marginHorizontal: 8,
   },
@@ -410,7 +445,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   promptPill: {
-    backgroundColor: '#1b2234',
+    backgroundColor: '#272a32',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
@@ -418,7 +453,7 @@ const styles = StyleSheet.create({
   },
   promptPillText: {
     fontSize: 11,
-    color: '#cad0e0',
+    color: '#cbc3d7',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -434,7 +469,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   pulsingSectionDot: {
     width: 6,
@@ -444,7 +479,7 @@ const styles = StyleSheet.create({
   },
   sectionMeta: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
   },
   loaderBox: {
     padding: 30,
@@ -452,23 +487,23 @@ const styles = StyleSheet.create({
   },
   loaderText: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 8,
   },
   emptyCard: {
     padding: 20,
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     alignItems: 'center',
   },
   emptyCardText: {
     fontSize: 12,
-    color: '#8e92a4',
+    color: '#cbc3d7',
   },
   trackCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     padding: 10,
     marginBottom: 8,
@@ -477,13 +512,13 @@ const styles = StyleSheet.create({
   },
   trackCardActive: {
     borderColor: 'rgba(76, 215, 246, 0.4)',
-    backgroundColor: '#172033',
+    backgroundColor: '#272a32',
   },
   trackCover: {
     width: 48,
     height: 48,
     borderRadius: 10,
-    backgroundColor: '#1e2436',
+    backgroundColor: '#272a32',
   },
   trackInfo: {
     flex: 1,
@@ -493,21 +528,21 @@ const styles = StyleSheet.create({
   trackTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   trackTitleActive: {
     color: '#4cd7f6',
   },
   trackArtist: {
     fontSize: 11,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
   playPill: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1b2438',
+    backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -526,17 +561,17 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 14,
-    backgroundColor: '#1e2436',
+    backgroundColor: '#272a32',
     marginBottom: 6,
   },
   shelfTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#e1e2ec',
   },
   shelfArtist: {
     fontSize: 10,
-    color: '#8e92a4',
+    color: '#cbc3d7',
     marginTop: 2,
   },
 });

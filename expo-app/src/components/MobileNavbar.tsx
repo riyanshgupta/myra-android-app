@@ -18,7 +18,7 @@ export const MobileNavbar: React.FC = () => {
           <Icon
             name="home"
             size={22}
-            color={activeScreen === 'home' ? '#4cd7f6' : '#8e92a4'}
+            color={activeScreen === 'home' ? '#4cd7f6' : '#cbc3d7'}
           />
           <Text
             style={[
@@ -37,9 +37,9 @@ export const MobileNavbar: React.FC = () => {
           activeOpacity={0.7}
         >
           <Icon
-            name="search"
+            name="explore"
             size={22}
-            color={activeScreen === 'search' ? '#4cd7f6' : '#8e92a4'}
+            color={activeScreen === 'search' ? '#4cd7f6' : '#cbc3d7'}
           />
           <Text
             style={[
@@ -74,7 +74,7 @@ export const MobileNavbar: React.FC = () => {
           <Icon
             name="queue-music"
             size={22}
-            color={activeScreen === 'playlists' ? '#4cd7f6' : '#8e92a4'}
+            color={activeScreen === 'playlists' ? '#4cd7f6' : '#cbc3d7'}
           />
           <Text
             style={[
@@ -96,7 +96,7 @@ export const MobileNavbar: React.FC = () => {
             <Icon
               name="album"
               size={22}
-              color={activeScreen === 'player' ? '#4cd7f6' : '#8e92a4'}
+              color={activeScreen === 'player' ? '#4cd7f6' : '#cbc3d7'}
             />
             {isPlaying && <View style={styles.playingIndicatorDot} />}
           </View>
@@ -116,7 +116,7 @@ export const MobileNavbar: React.FC = () => {
 
 const styles = StyleSheet.create({
   navContainer: {
-    backgroundColor: '#0c101b',
+    backgroundColor: '#10131a',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
     paddingBottom: Platform.OS === 'android' ? 26 : 14,
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#8e92a4',
+    color: '#cbc3d7',
   },
   navLabelActive: {
     color: '#4cd7f6',
@@ -160,20 +160,21 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#1b263b',
+    backgroundColor: '#a078ff',
     borderWidth: 2,
     borderColor: '#4cd7f6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4cd7f6',
+    shadowColor: '#a078ff',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.6,
     shadowRadius: 12,
     elevation: 10,
   },
   centerButtonActive: {
     backgroundColor: '#4cd7f6',
     borderColor: '#ffffff',
+    shadowColor: '#4cd7f6',
   },
   playerIconContainer: {
     position: 'relative',
@@ -187,6 +188,6 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: '#4cd7f6',
     borderWidth: 1,
-    borderColor: '#0c101b',
+    borderColor: '#10131a',
   },
 });

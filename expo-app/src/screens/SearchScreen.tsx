@@ -58,13 +58,13 @@ export const SearchScreen: React.FC = () => {
           value={query}
           onChangeText={handleSearch}
           placeholder="Search songs, artists, albums..."
-          placeholderTextColor="#6b7280"
+          placeholderTextColor="#8e92a4"
           autoCapitalize="none"
           autoCorrect={false}
         />
         {query.length > 0 && (
-          <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-            <Icon name="close" size={16} color="#8e92a4" />
+          <TouchableOpacity onPress={handleClear} style={styles.clearBtn} activeOpacity={0.7}>
+            <Icon name="close" size={16} color="#cbc3d7" />
           </TouchableOpacity>
         )}
       </View>
@@ -76,6 +76,7 @@ export const SearchScreen: React.FC = () => {
             key={chip}
             style={[styles.chip, query === chip && styles.chipActive]}
             onPress={() => handleChipClick(chip)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.chipText, query === chip && styles.chipTextActive]}>
               {chip}
@@ -107,7 +108,7 @@ export const SearchScreen: React.FC = () => {
               </View>
             ) : (
               <View style={styles.emptyBox}>
-                <Icon name="auto-awesome" size={32} color="#4cd7f6" />
+                <Icon name="auto-awesome" size={36} color="#4cd7f6" />
                 <Text style={styles.emptyTitle}>Discover Music</Text>
                 <Text style={styles.emptySub}>
                   Search millions of lossless tracks across languages and genres.
@@ -138,7 +139,7 @@ export const SearchScreen: React.FC = () => {
                 <View style={[styles.playBtn, isThisPlaying && styles.playBtnActive]}>
                   <Icon
                     name={isThisPlaying ? 'pause' : 'play-arrow'}
-                    size={16}
+                    size={14}
                     color={isThisPlaying ? '#0b0e17' : '#4cd7f6'}
                   />
                 </View>
@@ -154,13 +155,13 @@ export const SearchScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0f18',
+    backgroundColor: '#10131a',
     padding: 16,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 16,
     paddingHorizontal: 14,
     height: 48,
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#ffffff',
+    color: '#e1e2ec',
     fontSize: 14,
     marginLeft: 10,
     fontWeight: '500',
@@ -185,19 +186,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chip: {
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: '#272a32',
   },
   chipActive: {
     backgroundColor: '#4cd7f6',
     borderColor: '#4cd7f6',
   },
   chipText: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loaderText: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 12,
     marginTop: 10,
   },
@@ -223,13 +224,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#e1e2ec',
+    fontSize: 16,
+    fontWeight: '800',
     marginTop: 8,
   },
   emptySub: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 12,
     textAlign: 'center',
     maxWidth: 240,
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
   resultCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#131825',
+    backgroundColor: '#1d1f27',
     borderRadius: 14,
     padding: 10,
     marginBottom: 8,
@@ -246,13 +247,13 @@ const styles = StyleSheet.create({
   },
   resultCardActive: {
     borderColor: 'rgba(76, 215, 246, 0.4)',
-    backgroundColor: '#172033',
+    backgroundColor: '#272a32',
   },
   cover: {
     width: 46,
     height: 46,
     borderRadius: 10,
-    backgroundColor: '#1e2436',
+    backgroundColor: '#272a32',
   },
   info: {
     flex: 1,
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   title: {
-    color: '#ffffff',
+    color: '#e1e2ec',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -268,7 +269,7 @@ const styles = StyleSheet.create({
     color: '#4cd7f6',
   },
   artist: {
-    color: '#8e92a4',
+    color: '#cbc3d7',
     fontSize: 11,
     marginTop: 2,
   },
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1b2438',
+    backgroundColor: '#272a32',
     alignItems: 'center',
     justifyContent: 'center',
   },

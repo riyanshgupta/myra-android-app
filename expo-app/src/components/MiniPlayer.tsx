@@ -58,7 +58,7 @@ export const MiniPlayer: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#151b2a',
+    backgroundColor: '#1d1f27',
     borderTopWidth: 1,
     borderTopColor: 'rgba(76, 215, 246, 0.2)',
   },
