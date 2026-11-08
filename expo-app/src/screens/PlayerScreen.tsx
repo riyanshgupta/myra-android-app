@@ -25,48 +25,85 @@ const InteractiveScrubber: React.FC<{
   const [layoutWidth, setLayoutWidth] = useState<number>(300);
   const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
   const [scrubTime, setScrubTime] = useState<number>(currentTime);
+  const barRef = useRef<View>(null);
+  const barPageXRef = useRef<number>(0);
+  const layoutWidthRef = useRef<number>(300);
+  const isScrubbingRef = useRef<boolean>(false);
+  const durationRef = useRef<number>(duration);
   const thumbScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!isScrubbing) {
+    durationRef.current = duration;
+  }, [duration]);
+
+  useEffect(() => {
+    if (!isScrubbingRef.current) {
       setScrubTime(currentTime);
     }
-  }, [currentTime, isScrubbing]);
+  }, [currentTime]);
 
-  const activeTime = isScrubbing ? scrubTime : currentTime;
-  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (activeTime / duration) * 100)) : 0;
+  const measureBar = () => {
+    if (barRef.current && typeof barRef.current.measure === 'function') {
+      barRef.current.measure((_x, _y, width, _height, pageX, _pageY) => {
+        if (width > 0) {
+          setLayoutWidth(width);
+          layoutWidthRef.current = width;
+        }
+        if (typeof pageX === 'number' && pageX >= 0) {
+          barPageXRef.current = pageX;
+        }
+      });
+    }
+  };
+
+  const calculateSecsFromMoveX = (moveX: number) => {
+    const pageX = barPageXRef.current > 0 ? barPageXRef.current : 20;
+    const width = layoutWidthRef.current > 0 ? layoutWidthRef.current : 300;
+    const relativeX = moveX - pageX;
+    const ratio = Math.max(0, Math.min(1, relativeX / Math.max(1, width)));
+    return ratio * (durationRef.current || 180);
+  };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
+      onPanResponderGrant: (evt, gestureState) => {
+        isScrubbingRef.current = true;
         setIsScrubbing(true);
-        Animated.spring(thumbScale, { toValue: 1.35, useNativeDriver: true }).start();
-        const touchX = evt.nativeEvent.locationX;
-        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
-        setScrubTime(ratio * duration);
+        measureBar();
+        Animated.spring(thumbScale, { toValue: 1.4, useNativeDriver: true }).start();
+
+        const initialX = gestureState.x0 || gestureState.moveX || evt.nativeEvent.pageX;
+        const secs = calculateSecsFromMoveX(initialX);
+        setScrubTime(secs);
       },
-      onPanResponderMove: (evt) => {
-        const touchX = evt.nativeEvent.locationX;
-        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
-        setScrubTime(ratio * duration);
+      onPanResponderMove: (evt, gestureState) => {
+        const moveX = gestureState.moveX || evt.nativeEvent.pageX;
+        const secs = calculateSecsFromMoveX(moveX);
+        setScrubTime(secs);
       },
-      onPanResponderRelease: (evt) => {
+      onPanResponderRelease: (evt, gestureState) => {
         Animated.spring(thumbScale, { toValue: 1, useNativeDriver: true }).start();
-        const touchX = evt.nativeEvent.locationX;
-        const ratio = Math.max(0, Math.min(1, touchX / Math.max(1, layoutWidth)));
-        const finalSecs = ratio * duration;
+        const moveX = gestureState.moveX || evt.nativeEvent.pageX;
+        const finalSecs = calculateSecsFromMoveX(moveX);
         setScrubTime(finalSecs);
         seekTo(finalSecs);
-        setTimeout(() => setIsScrubbing(false), 200);
+        setTimeout(() => {
+          isScrubbingRef.current = false;
+          setIsScrubbing(false);
+        }, 150);
       },
       onPanResponderTerminate: () => {
         Animated.spring(thumbScale, { toValue: 1, useNativeDriver: true }).start();
+        isScrubbingRef.current = false;
         setIsScrubbing(false);
       },
     })
   ).current;
+
+  const activeTime = isScrubbing ? scrubTime : currentTime;
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (activeTime / duration) * 100)) : 0;
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '00:00';
@@ -78,8 +115,16 @@ const InteractiveScrubber: React.FC<{
   return (
     <View style={styles.scrubberContainer}>
       <View
+        ref={barRef}
         style={styles.trackBackgroundContainer}
-        onLayout={(e) => setLayoutWidth(e.nativeEvent.layout.width)}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) {
+            setLayoutWidth(w);
+            layoutWidthRef.current = w;
+          }
+          measureBar();
+        }}
         {...panResponder.panHandlers}
       >
         <View style={styles.trackBackground}>
