@@ -59,54 +59,60 @@ export const MyraAiScreen: React.FC = () => {
 
     addLog('INIT', `Myra AI Screen mounted on ${Platform.OS.toUpperCase()}`);
 
-    try {
-      const speechMod = require('expo-speech-recognition');
-      if (speechMod && speechMod.ExpoSpeechRecognitionModule) {
-        speechModuleRef.current = speechMod.ExpoSpeechRecognitionModule;
-        if (isMounted) setNativeSpeechAvailable(true);
-        addLog('STT_MODULE', 'Native expo-speech-recognition module FOUND');
+    const hasNativeSpeechModule = Boolean(
+      typeof global !== 'undefined' &&
+      (global as any)?.ExpoModules?.ExpoSpeechRecognition
+    );
 
-        const subStart = speechMod.ExpoSpeechRecognitionModule.addListener('start', () => {
-          if (!isMounted) return;
-          addLog('STT_EVENT', 'Speech recognition engine STARTED');
-          setIsRecording(true);
-          setApiStatus('listening');
-          startWaveAnimation();
-        });
+    if (hasNativeSpeechModule) {
+      try {
+        const speechMod = require('expo-speech-recognition');
+        if (speechMod && speechMod.ExpoSpeechRecognitionModule) {
+          speechModuleRef.current = speechMod.ExpoSpeechRecognitionModule;
+          if (isMounted) setNativeSpeechAvailable(true);
+          addLog('STT_MODULE', 'Native expo-speech-recognition module FOUND');
 
-        const subResult = speechMod.ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
-          if (!isMounted) return;
-          const transcript = event.results?.[0]?.transcript || '';
-          if (transcript) {
-            addLog('LIVE_CAPTION', `Captured text: "${transcript}"`);
-            setLiveCaption(transcript);
+          const subStart = speechMod.ExpoSpeechRecognitionModule.addListener('start', () => {
+            if (!isMounted) return;
+            addLog('STT_EVENT', 'Speech recognition engine STARTED');
+            setIsRecording(true);
             setApiStatus('listening');
+            startWaveAnimation();
+          });
 
-            // Reset pause timer to detect end of speech (1.2s silence)
-            if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-            pauseTimerRef.current = setTimeout(() => {
-              addLog('PAUSE_DETECT', '1.2s silence threshold reached. Sending to API...');
-              handleSpeechPauseDetected(transcript);
-            }, 1200);
-          }
-        });
+          const subResult = speechMod.ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+            if (!isMounted) return;
+            const transcript = event.results?.[0]?.transcript || '';
+            if (transcript) {
+              addLog('LIVE_CAPTION', `Captured text: "${transcript}"`);
+              setLiveCaption(transcript);
+              setApiStatus('listening');
 
-        const subEnd = speechMod.ExpoSpeechRecognitionModule.addListener('end', () => {
-          if (!isMounted) return;
-          addLog('STT_EVENT', 'Speech recognition engine STOPPED');
-          stopWaveAnimation();
-        });
+              if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+              pauseTimerRef.current = setTimeout(() => {
+                addLog('PAUSE_DETECT', '1.2s silence threshold reached. Sending to API...');
+                handleSpeechPauseDetected(transcript);
+              }, 1200);
+            }
+          });
 
-        const subError = speechMod.ExpoSpeechRecognitionModule.addListener('error', (err: any) => {
-          addLog('STT_ERROR', err?.message || JSON.stringify(err));
-        });
+          const subEnd = speechMod.ExpoSpeechRecognitionModule.addListener('end', () => {
+            if (!isMounted) return;
+            addLog('STT_EVENT', 'Speech recognition engine STOPPED');
+            stopWaveAnimation();
+          });
 
-        listenersRef.current = [subStart, subResult, subEnd, subError];
-      } else {
-        addLog('STT_MODULE', 'expo-speech-recognition not initialized (using Live Audio Meter & Copilot)');
+          const subError = speechMod.ExpoSpeechRecognitionModule.addListener('error', (err: any) => {
+            addLog('STT_ERROR', err?.message || JSON.stringify(err));
+          });
+
+          listenersRef.current = [subStart, subResult, subEnd, subError];
+        }
+      } catch (err: any) {
+        addLog('STT_MODULE', 'expo-speech-recognition absent in Expo Go (using Live Dictation & Copilot)');
       }
-    } catch (err: any) {
-      addLog('STT_MODULE', 'expo-speech-recognition absent in Expo Go (using Live Dictation & Copilot)');
+    } else {
+      addLog('STT_MODULE', 'Native speech module bypassed in Expo Go (Live Speech Input & Voice Dictation active)');
     }
 
     // Auto-request mic on opening screen
@@ -268,6 +274,19 @@ export const MyraAiScreen: React.FC = () => {
         }, 1200);
       }
     }, 220);
+  };
+
+  const handleInputChange = (text: string) => {
+    setCustomText(text);
+    if (text.trim()) {
+      setLiveCaption(text);
+      if (!isRecording) {
+        setIsRecording(true);
+        setApiStatus('listening');
+        startWaveAnimation();
+      }
+      addLog('VOICE_DICTATION', `Live Input: "${text}"`);
+    }
   };
 
   const handleSendCustom = async () => {
@@ -508,7 +527,7 @@ export const MyraAiScreen: React.FC = () => {
           placeholder="Speak or type (e.g. Play synthwave or Pause)..."
           placeholderTextColor="#8e92a4"
           value={customText}
-          onChangeText={setCustomText}
+          onChangeText={handleInputChange}
           onSubmitEditing={handleSendCustom}
           returnKeyType="send"
         />

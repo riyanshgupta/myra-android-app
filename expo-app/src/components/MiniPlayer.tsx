@@ -1,62 +1,95 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { usePlayer } from '../context/PlayerContext';
 import { Icon } from './Icon';
+import { NotificationCardOverlay } from './NotificationCardOverlay';
 
 export const MiniPlayer: React.FC = () => {
   const { currentTrack, isPlaying, togglePlay, currentTime, duration, setActiveScreen } =
     usePlayer();
+  const [showCardOverlay, setShowCardOverlay] = useState<boolean>(false);
 
   if (!currentTrack) return null;
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <View style={styles.container}>
-      {/* Micro progress line */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-      </View>
+    <View style={styles.outerContainer}>
+      {/* Expanded Custom Notification Card Overlay matching image_d894ba1c.png */}
+      {showCardOverlay && (
+        <NotificationCardOverlay onClose={() => setShowCardOverlay(false)} />
+      )}
 
-      <TouchableOpacity
-        style={styles.innerRow}
-        onPress={() => setActiveScreen('player')}
-        activeOpacity={0.9}
-      >
-        {/* Cover Art */}
-        <Image source={{ uri: currentTrack.coverUrl }} style={styles.coverArt} />
-
-        {/* Track Metadata */}
-        <View style={styles.metadata}>
-          <Text style={styles.title} numberOfLines={1}>
-            {currentTrack.title}
-          </Text>
-          <Text style={styles.artist} numberOfLines={1}>
-            {currentTrack.artist}
-          </Text>
+      <View style={styles.container}>
+        {/* Micro progress line */}
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
 
-        {/* Play/Pause Button */}
         <TouchableOpacity
-          style={styles.playBtn}
-          onPress={(e) => {
-            e.stopPropagation();
-            togglePlay();
-          }}
-          activeOpacity={0.8}
+          style={styles.innerRow}
+          onPress={() => setActiveScreen('player')}
+          activeOpacity={0.9}
         >
-          <Icon
-            name={isPlaying ? 'pause' : 'play-arrow'}
-            size={18}
-            color="#0b0e17"
-          />
+          {/* Cover Art */}
+          <Image source={{ uri: currentTrack.coverUrl }} style={styles.coverArt} />
+
+          {/* Track Metadata */}
+          <View style={styles.metadata}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title} numberOfLines={1}>
+                {currentTrack.title}
+              </Text>
+              <View style={styles.aiTag}>
+                <Text style={styles.aiTagText}>AI REMIX</Text>
+              </View>
+            </View>
+            <Text style={styles.artist} numberOfLines={1}>
+              {currentTrack.artist} • Tuned for late night calm
+            </Text>
+          </View>
+
+          {/* Toggle Card Overlay View Button */}
+          <TouchableOpacity
+            style={styles.cardToggleBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              setShowCardOverlay(!showCardOverlay);
+            }}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name={showCardOverlay ? 'keyboard-arrow-down' : 'dashboard'}
+              size={18}
+              color="#d0bcff"
+            />
+          </TouchableOpacity>
+
+          {/* Play/Pause Button */}
+          <TouchableOpacity
+            style={styles.playBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              togglePlay();
+            }}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name={isPlaying ? 'pause' : 'play-arrow'}
+              size={18}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    backgroundColor: '#10131a',
+  },
   container: {
     backgroundColor: '#1d1f27',
     borderTopWidth: 1,
@@ -88,16 +121,46 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     marginRight: 8,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   title: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+    flexShrink: 1,
+  },
+  aiTag: {
+    backgroundColor: 'rgba(76, 215, 246, 0.15)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 215, 246, 0.35)',
+  },
+  aiTagText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#4cd7f6',
   },
   artist: {
     color: '#d0bcff',
     fontSize: 11,
     marginTop: 2,
     fontWeight: '500',
+  },
+  cardToggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(160, 120, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(160, 120, 255, 0.3)',
   },
   playBtn: {
     width: 38,

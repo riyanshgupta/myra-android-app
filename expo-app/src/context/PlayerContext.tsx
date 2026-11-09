@@ -14,7 +14,11 @@ import {
   removeFavoriteTrackApi,
   searchMusicApi,
 } from '../services/api';
-import { updatePlaybackNotification, clearPlaybackNotification } from '../services/notificationService';
+import {
+  updatePlaybackNotification,
+  clearPlaybackNotification,
+  setNotificationActionHandlers,
+} from '../services/notificationService';
 import {
   requestMicrophonePermission,
   checkMicrophonePermission,
@@ -145,6 +149,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           playThroughEarpieceAndroid: false,
         });
       } catch (_) {}
+
+      // Register interactive media notification action button callbacks
+      setNotificationActionHandlers({
+        onTogglePlay: () => togglePlay(),
+        onNext: () => nextTrack(),
+        onPrev: () => prevTrack(),
+        onCopilot: () => setActiveScreen('myra-ai'),
+      });
 
       // Load initial trending catalog
       await refreshTrending();
